@@ -345,6 +345,7 @@
       <a href="#por-setor"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 21V10l7-5 7 5v11"/><path d="M10 21v-6h4v6"/><path d="M17 21V13l4-2v10"/></svg></span>Por setor</a>
       <a href="#grupos"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 20V10M12 20V4M20 20v-7"/></svg></span>Valor por grupo</a>
       <a href="#movimentacao"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 17l5-5 4 4 8-9"/><path d="M14 7h6v6"/></svg></span>Movimentação</a>
+      <a href="#compras-pendentes"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 6h15l-1.5 9h-12z"/><path d="M6 6L5 2H2"/><circle cx="9" cy="20" r="1.4"/><circle cx="17" cy="20" r="1.4"/></svg></span>O que comprar</a>
       <span class="section-label">Ação</span>
       <a href="#criticos"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l9 17H3z"/><path d="M12 10v4M12 17.5v.01"/></svg></span>Itens críticos</a>
       <a href="#pedidos"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 3h9l3 3v15H6z"/><path d="M9 9h6M9 13h6M9 17h4"/></svg></span>Pedidos de compra</a>
@@ -484,9 +485,28 @@
 
     <section id="movimentacao">
       <div class="section-head">
-        <h2>Movimentação de saída</h2>
+        <h2>Movimentação de estoque</h2>
         <span class="hint" id="movHint">1.625 saídas registradas · 06/12/2025 a 18/09/2026 · aba Histórico de Saídas</span>
       </div>
+      <div class="setor-kpis" id="movResumoKpis" style="margin-bottom:14px;">
+        <div class="setor-kpi">
+          <div class="label">Entradas no período</div>
+          <div class="val" id="resumoEntradasN" style="color:var(--good);">—</div>
+        </div>
+        <div class="setor-kpi">
+          <div class="label">Saídas no período</div>
+          <div class="val" id="resumoSaidasN" style="color:var(--accent);">—</div>
+        </div>
+        <div class="setor-kpi">
+          <div class="label">Saldo de lançamentos</div>
+          <div class="val" id="resumoSaldoN">—</div>
+        </div>
+        <div class="setor-kpi">
+          <div class="label">Valor recebido no período</div>
+          <div class="val" id="resumoValorEntrada">—</div>
+        </div>
+      </div>
+
       <div class="grid cols-2">
         <div class="card">
           <h3>Saídas registradas por mês</h3>
@@ -513,6 +533,32 @@
             <table>
               <thead><tr><th>Item</th><th class="num">Qtd. total</th><th class="num">Saídas</th></tr></thead>
               <tbody id="tblTopSaidas"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid cols-2" style="margin-top:14px;">
+        <div class="card">
+          <h3>Entradas registradas por mês</h3>
+          <div class="card-sub" id="entradaHint">nº de lançamentos de entrada · movimentacoes_entrada.xlsx</div>
+          <div class="chart-wrap" style="height:260px;">
+            <canvas id="chartEntrada"></canvas>
+          </div>
+        </div>
+        <div class="card">
+          <h3>Itens mais recebidos</h3>
+          <div class="card-sub">soma da quantidade recebida no período, top 8</div>
+          <div class="toolbar">
+            <div class="search-box">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+              <input type="text" id="searchEntradas" placeholder="Buscar item...">
+            </div>
+          </div>
+          <div class="table-scroll">
+            <table>
+              <thead><tr><th>Item</th><th class="num">Qtd. total</th><th class="num">Entradas</th><th class="num">Valor recebido</th></tr></thead>
+              <tbody id="tblTopEntradas"></tbody>
             </table>
           </div>
         </div>
@@ -604,6 +650,37 @@
       </div>
     </section>
 
+    <section id="compras-pendentes">
+      <div class="section-head">
+        <h2>O que comprar agora</h2>
+        <span class="hint" id="comprasPendentesHint">28 pedidos pendentes de 30 registrados · aba Histórico de Pedidos</span>
+      </div>
+      <div class="card">
+        <div class="toolbar">
+          <div class="search-box">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+            <input type="text" id="searchCompras" placeholder="Buscar produto ou fornecedor...">
+          </div>
+          <div class="select-wrap">
+            <select class="filter-select" id="filterComprasSituacao" aria-label="Filtrar por situação">
+              <option value="">Todas as situações</option>
+            </select>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+          </div>
+          <span class="count-hint" id="comprasCountHint"></span>
+        </div>
+        <div class="table-scroll">
+          <table>
+            <thead><tr>
+              <th>Produto</th><th class="num">Qtd. a comprar</th><th>Motivo</th><th>Fornecedor</th>
+              <th>Situação</th><th>Previsão</th><th>Observações</th>
+            </tr></thead>
+            <tbody id="tblComprasPendentes"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
     <section id="saude">
       <div class="section-head">
         <h2>Top 20 — maior valor parado em estoque</h2>
@@ -647,7 +724,7 @@
     </section>
 
     <footer>
-      Painel gerado a partir de "controle_estoque_almoxarifado.xlsx" — abas Base_Gestran, Análises Gerais, Controle de Estoque, Histórico de Pedidos e Histórico de Saídas.
+      Painel sincronizado automaticamente do GitHub (wesleylima2703/Almoxarifado) — "Principal.xlsx" (abas Base_Gestran, Análises Gerais, Controle de Estoque, Histórico de Pedidos e Histórico de Saídas) e "movimentacoes_entrada.xlsx" (entradas de estoque).
     </footer>
   </main>
 </div>
@@ -861,6 +938,58 @@
     ["Frigoking", 1], ["Jaé Ilha Descartáveis", 1], ["Autopeças Rio Bonito", 1]
   ];
 
+  // ---- Movimentação de entrada (movimentacoes_entrada.xlsx) ----
+  var movTotalGlobalEntrada = 171;
+  var movValorGlobalEntrada = 25356.79;
+  var movDateRangeGlobalEntrada = '27/01/2026 a 10/09/2026';
+  var movDataEntrada = [
+    ["jan/26", 5], ["fev/26", 17], ["mar/26", 49], ["abr/26", 18], ["mai/26", 17],
+    ["jun/26", 5], ["jul/26", 27], ["ago/26", 25], ["set/26*", 8]
+  ];
+  var topEntradas = [
+    ["P.MDF 4,0 X 35", 301, 4, 56.40],
+    ["P.MDF 4,5X50", 230, 3, 57.50],
+    ["Parafuso francês 5/16X1 1/2", 103, 1, 181.28],
+    ["Parafuso autobrocante sext 12X1 1/2", 101, 2, 94.00],
+    ["Parafuso perfurante 4,2 X 25", 100, 1, 16.00],
+    ["Parafuso autobrocante sext 12X7/8", 100, 1, 28.00],
+    ["Parafuso auto perfurante chata 4,2X32", 100, 1, 21.00],
+    ["Parafuso auto perfurante panela 4,2 X 22", 100, 1, 12.00]
+  ];
+
+  // ---- Lista completa de pedidos de compra (aba Histórico de Pedidos) ----
+  // Data, Produto, Qtd a comprar, Motivo, Fornecedor, Situação, Previsão de entrega, Observações
+  var comprasPendentesRows = [
+    ["27/08/2026","Sikaflex branco",8,"Estoque zerado","Casa do Pedreiro","Pendente","",""],
+    ["27/08/2026","Roda montada p/ carrinho de carga",6,"Estoque zerado","MP7","Pendente","",""],
+    ["27/08/2026","Fita rotulador compatível c/ TZE-641 18mm amarela Pt-e550wvp",2,"Estoque zerado","Mercado Livre","Pendente","",""],
+    ["27/08/2026","Antisséptico bucal refil 1 litro",2,"Estoque baixo","Mercado Livre","Pendente","",""],
+    ["27/08/2026","Pedra perfumada sanitária (rede plástica) Harpic",10,"Estoque baixo","Jaé Ilha Descartáveis","Pendente","",""],
+    ["27/08/2026","Perfex",2,"Estoque baixo","Jaé Ilha Descartáveis","Pendente","",""],
+    ["02/09/2026","Vassourão de inox",2,"Estoque zerado","Mercado Livre","Pendente","",""],
+    ["02/09/2026","Filtro de ar VW",2,"Estoque zerado","Transrio","Pendente","",""],
+    ["02/09/2026","Filtro lubrificante OMD2RO115403 VW",2,"Estoque zerado","Transrio","Pendente","",""],
+    ["02/09/2026","Filtro de combustível OMD2PO127177",2,"Estoque baixo","Transrio","Pendente","",""],
+    ["02/09/2026","Japona nylon azul motorista (M)",4,"Estoque zerado","Pamcold","Pendente","",""],
+    ["02/09/2026","Japona nylon azul motorista (G)",4,"Estoque zerado","Pamcold","Pendente","",""],
+    ["02/09/2026","Japona nylon azul motorista (GG)",4,"Estoque zerado","Pamcold","Pendente","",""],
+    ["02/09/2026","Japona nylon motorista (EGG)",2,"Estoque zerado","Pamcold","Pendente","",""],
+    ["02/09/2026","Calça térmica -25° M",4,"Estoque zerado","Pamcold","Pendente","",""],
+    ["02/09/2026","Calça térmica -25° G",4,"Estoque zerado","Pamcold","Pendente","",""],
+    ["02/09/2026","Calça térmica -25° GG",4,"Estoque zerado","Pamcold","Pendente","",""],
+    ["02/09/2026","Calça térmica -45° M",2,"Estoque zerado","Pamcold","Pendente","",""],
+    ["02/09/2026","Calça térmica -45° G",2,"Estoque zerado","Pamcold","Pendente","",""],
+    ["02/09/2026","Calça térmica -45° GG",2,"Estoque zerado","Pamcold","Pendente","",""],
+    ["02/09/2026","Buzina bibi 24V",10,"Estoque zerado","Propeças","Pendente","",""],
+    ["02/09/2026","Interruptor vidro elét. VW duplo",5,"Estoque zerado","Propeças","Pendente","",""],
+    ["14/09/2026","Pasta sanfonada A-Z",1,"Estoque zerado","Mercado Livre / Kalunga","Pendente","",""],
+    ["17/09/2026","Papel higiênico rolão 8x300",5,"Estoque baixo","Valois","Pendente","",""],
+    ["17/09/2026","Rolamento de centro 45mm",2,"Estoque baixo","Autopeças Rio Bonito","Pendente","",""],
+    ["17/09/2026","Tanque de líquido SA1 AC/AE",1,"Estoque zerado","Frigoking","Pendente","",""],
+    ["17/09/2026","Pastilha sanitária",null,"Estoque baixo","","Pendente","",""],
+    ["17/09/2026","Desentupidor de vaso com cabo",null,"Estoque baixo","","Pendente","",""]
+  ];
+
   function fmtBRL(v){
     return v.toLocaleString('pt-BR', {style:'currency', currency:'BRL', maximumFractionDigits:0});
   }
@@ -901,6 +1030,49 @@
     });
   }
 
+  var tblTopEntradas = document.getElementById('tblTopEntradas');
+  function buildTopEntradasTable(){
+    tblTopEntradas.innerHTML = '';
+    topEntradas.forEach(function(r){
+      tblTopEntradas.insertAdjacentHTML('beforeend',
+        '<tr><td class="prod-name">'+r[0]+'</td><td class="num">'+fmtNum(r[1])+'</td><td class="num">'+r[2]+'</td><td class="num">'+fmtBRL(r[3])+'</td></tr>');
+    });
+  }
+
+  var situacaoTagClass = { pendente:'warn', recebido:'good', solicitado:'neutral' };
+  var tblComprasPendentes = document.getElementById('tblComprasPendentes');
+  function buildComprasPendentesTable(){
+    tblComprasPendentes.innerHTML = '';
+    if(!comprasPendentesRows.length){
+      tblComprasPendentes.innerHTML = '<tr><td colspan="7" class="prod-loc">Nenhum pedido registrado.</td></tr>';
+      return;
+    }
+    comprasPendentesRows.forEach(function(r){
+      var sitLabel = r[5] || '—';
+      var sitClass = situacaoTagClass[normalize(sitLabel)] || 'neutral';
+      tblComprasPendentes.insertAdjacentHTML('beforeend',
+        '<tr><td class="prod-name">'+r[1]+'<div class="prod-loc">Pedido em '+(r[0]||'—')+'</div></td>'+
+        '<td class="num">'+(r[2]!==null && r[2]!==undefined ? fmtNum(r[2]) : '—')+'</td>'+
+        '<td>'+(r[3]||'—')+'</td>'+
+        '<td>'+(r[4]||'—')+'</td>'+
+        '<td><span class="tag '+sitClass+'">'+sitLabel+'</span></td>'+
+        '<td>'+(r[6]||'—')+'</td>'+
+        '<td class="prod-loc">'+(r[7]||'')+'</td></tr>');
+    });
+  }
+  function populateComprasSituacaoOptions(){
+    var sel = document.getElementById('filterComprasSituacao');
+    var current = sel.value;
+    sel.innerHTML = '<option value="">Todas as situações</option>';
+    var unique = Array.from(new Set(comprasPendentesRows.map(function(r){return r[5];}).filter(Boolean))).sort();
+    unique.forEach(function(s){
+      var opt = document.createElement('option');
+      opt.value = s; opt.textContent = s;
+      sel.appendChild(opt);
+    });
+    if(unique.indexOf(current) >= 0) sel.value = current;
+  }
+
   var comprarAgoraRows = [
     ["Lâmpada H4 24V Wurth", 1, 5, 4, "Sistema soma +59un de Philips à parte — risco de decisão errada"],
     ["Rolamento de centro 45mm", 0, 1, 3, "Físico 1un vs. sistema 0un — já em pedido pendente"],
@@ -920,9 +1092,13 @@
   }
 
   buildTopSaidasTable();
+  buildTopEntradasTable();
   buildFornecedorTable();
   buildTop20Table();
   buildComprarAgoraTable();
+  buildComprasPendentesTable();
+  populateComprasSituacaoOptions();
+  updateMovResumo();
 
   /* ---------- Busca / filtros nas tabelas ---------- */
   function normalize(s){ return (s||'').toString().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,''); }
@@ -943,7 +1119,41 @@
   }
 
   attachSearch(document.getElementById('searchSaidas'), tblTopSaidas);
+  attachSearch(document.getElementById('searchEntradas'), tblTopEntradas);
   attachSearch(document.getElementById('searchFornecedor'), tblFornecedor);
+
+  var comprasSituacaoFilter = '';
+  var comprasCountHint = document.getElementById('comprasCountHint');
+  function refreshComprasCount(){
+    var rows = tblComprasPendentes.querySelectorAll('tr');
+    var visible = 0;
+    rows.forEach(function(tr){ if(!tr.classList.contains('row-hidden')) visible++; });
+    comprasCountHint.textContent = visible + ' de ' + rows.length + ' pedidos';
+  }
+  var applyComprasFilter = attachSearch(document.getElementById('searchCompras'), tblComprasPendentes, function(tr){
+    if(!comprasSituacaoFilter) return true;
+    var tagEl = tr.querySelector('.tag');
+    return tagEl && tagEl.textContent === comprasSituacaoFilter;
+  });
+  document.getElementById('searchCompras').addEventListener('input', refreshComprasCount);
+  var filterComprasSituacaoSelect = document.getElementById('filterComprasSituacao');
+  filterComprasSituacaoSelect.addEventListener('change', function(){
+    comprasSituacaoFilter = filterComprasSituacaoSelect.value;
+    applyComprasFilter();
+    refreshComprasCount();
+  });
+  refreshComprasCount();
+
+  function updateMovResumo(){
+    document.getElementById('resumoEntradasN').textContent = movTotalGlobalEntrada.toLocaleString('pt-BR');
+    document.getElementById('resumoSaidasN').textContent = movTotalGlobal.toLocaleString('pt-BR');
+    var delta = movTotalGlobalEntrada - movTotalGlobal;
+    var deltaEl = document.getElementById('resumoSaldoN');
+    deltaEl.textContent = (delta>0?'+':'') + delta.toLocaleString('pt-BR') + ' lanç.';
+    deltaEl.style.color = delta > 0 ? 'var(--good)' : (delta < 0 ? 'var(--crit)' : '');
+    document.getElementById('resumoValorEntrada').textContent = fmtBRL(movValorGlobalEntrada);
+    document.getElementById('entradaHint').textContent = movTotalGlobalEntrada.toLocaleString('pt-BR')+' entradas registradas · '+movDateRangeGlobalEntrada+' · movimentacoes_entrada.xlsx';
+  }
 
   var top20AlmoxFilter = '';
   var applyTop20Filter = attachSearch(document.getElementById('searchTop20'), tblTop20, function(tr){
@@ -1078,6 +1288,24 @@
         },
         plugins:{ legend:{display:false},
           tooltip:{ callbacks:{ label:function(ctx){ return ctx.parsed.y+' saídas · clique para comparar'; } } } },
+        scales:{ x:{ grid:{display:false} }, y:{ grid:{color:grid}, beginAtZero:true } }
+      }
+    });
+
+    charts.entrada = new Chart(document.getElementById('chartEntrada'), {
+      type:'bar',
+      data:{
+        labels: movDataEntrada.map(function(d){return d[0];}),
+        datasets:[{
+          data: movDataEntrada.map(function(d){return d[1];}),
+          backgroundColor: hexToRgba(good, isDark()?0.55:0.65),
+          borderRadius: 4, maxBarThickness: 28
+        }]
+      },
+      options:{
+        responsive:true, maintainAspectRatio:false,
+        plugins:{ legend:{display:false},
+          tooltip:{ callbacks:{ label:function(ctx){ return ctx.parsed.y+' entradas'; } } } },
         scales:{ x:{ grid:{display:false} }, y:{ grid:{color:grid}, beginAtZero:true } }
       }
     });
@@ -1399,6 +1627,8 @@
 
     document.getElementById('pedidosHint').textContent = pedidosTotalGlobal.toLocaleString('pt-BR')+' pedidos registrados · aba Histórico de Pedidos';
     document.getElementById('situacaoSub').textContent = pedidosTotalGlobal.toLocaleString('pt-BR')+' pedidos no período';
+    var pendentesN = comprasPendentesRows.filter(function(r){ return normalize(r[5]).indexOf('pendente')>=0; }).length;
+    document.getElementById('comprasPendentesHint').textContent = pendentesN.toLocaleString('pt-BR')+' pedidos pendentes de '+comprasPendentesRows.length.toLocaleString('pt-BR')+' registrados · aba Histórico de Pedidos';
 
     document.getElementById('fragmentadosNote').innerHTML =
       '<b>'+fragmentadosGlobal.toLocaleString('pt-BR')+'</b> produtos estão cadastrados em mais de um registro (marca ou local fragmentado) e <b>'+negativeItems.length+'</b> cadastros têm saldo negativo por erro de lançamento — ambos distorcem o saldo real disponível e devem ser corrigidos no Gestran antes da próxima rodada de compras.';
@@ -1409,6 +1639,9 @@
   function excelSerialToDate(serial){
     var ms = Math.round(serial * 86400000);
     return new Date(Date.UTC(1899,11,30) + ms);
+  }
+  function fmtDateBR(d){
+    return ('0'+d.getUTCDate()).slice(-2)+'/'+('0'+(d.getUTCMonth()+1)).slice(-2)+'/'+d.getUTCFullYear();
   }
 
   function parseNum(v){
@@ -1574,8 +1807,10 @@
       else {
         var pHeader = pedidosRows[pIdx];
         var cSit = findCol(pHeader,'situa'), cMot = findCol(pHeader,'motivo'),
-            cForn = findCol(pHeader,'fornecedor'), cProdP = findCol(pHeader,'produto');
-        var sitCounts = {}, motCounts = {}, fornCounts = {}, pedidosTotal = 0;
+            cForn = findCol(pHeader,'fornecedor'), cProdP = findCol(pHeader,'produto'),
+            cData = findCol(pHeader,'data'), cQtdP = findCol(pHeader,'quantidade'),
+            cPrevisao = findCol(pHeader,'previs'), cObsP = findCol(pHeader,'observa');
+        var sitCounts = {}, motCounts = {}, fornCounts = {}, pedidosTotal = 0, pedidosRowsFull = [];
         for(var k=pIdx+1;k<pedidosRows.length;k++){
           var r3 = pedidosRows[k];
           var prodVal = cProdP>=0 ? r3[cProdP] : '';
@@ -1591,6 +1826,15 @@
           if(motLabel) motCounts[motLabel] = (motCounts[motLabel]||0)+1;
           var fornVal = cForn>=0 ? String(r3[cForn]||'').trim() : '';
           if(fornVal) fornCounts[fornVal] = (fornCounts[fornVal]||0)+1;
+
+          var dataVal = cData>=0 ? r3[cData] : '';
+          var dataSerial = typeof dataVal==='number' ? dataVal : parseFloat(dataVal);
+          var dataLabel = dataSerial && !isNaN(dataSerial) ? fmtDateBR(excelSerialToDate(dataSerial)) : (String(dataVal||'').trim());
+          var qtdVal = cQtdP>=0 ? r3[cQtdP] : null;
+          var qtdNum = (qtdVal===null || qtdVal===undefined || String(qtdVal).trim()==='') ? null : parseNum(qtdVal);
+          var previsaoVal = cPrevisao>=0 ? String(r3[cPrevisao]||'').trim() : '';
+          var obsVal = cObsP>=0 ? String(r3[cObsP]||'').trim() : '';
+          pedidosRowsFull.push([dataLabel, String(prodVal).trim(), qtdNum, motLabel || (String(motVal||'').trim()), fornVal, sitLabel, previsaoVal, obsVal]);
         }
         if(pedidosTotal>0){
           var order = ['Pendente','Recebido'];
@@ -1601,11 +1845,15 @@
           });
           var motLabels2 = Object.keys(motCounts).sort(function(a,b){ return motCounts[b]-motCounts[a]; });
           var fornArr = Object.keys(fornCounts).map(function(k){return [k, fornCounts[k]];}).sort(function(a,b){return b[1]-a[1];});
+          pedidosRowsFull.sort(function(a,b){
+            var pa = a[5]==='Pendente' ? 0 : 1, pb = b[5]==='Pendente' ? 0 : 1;
+            return pa - pb;
+          });
           pedidosResult = {
             total: pedidosTotal,
             situacaoLabels: sitLabels, situacaoData: sitLabels.map(function(l){return sitCounts[l];}),
             motivoLabels: motLabels2, motivoData: motLabels2.map(function(l){return motCounts[l];}),
-            fornecedores: fornArr
+            fornecedores: fornArr, rows: pedidosRowsFull
           };
         }
       }
@@ -1639,6 +1887,59 @@
     } else { warnings.push('Não encontrei a aba "Controle_Estoque".'); }
 
     return { base: baseData, saidas: saidasResult, pedidos: pedidosResult, curadoria: curadoriaResult, warnings: warnings };
+  }
+
+  /* ---------- Movimentação de entrada (movimentacoes_entrada.xlsx) ---------- */
+  function processEntradaWorkbook(wb){
+    var sheetName = wb.SheetNames.indexOf('Movimentacoes_Unificado')>=0 ? 'Movimentacoes_Unificado' : wb.SheetNames[0];
+    var rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], {header:1, raw:true, defval:''});
+    var hIdx = findHeaderRowIndex(rows, ['produto','quantidade']);
+    if(hIdx<0) throw new Error('Não encontrei o cabeçalho (Produto/Quantidade) na planilha de entradas.');
+    var header = rows[hIdx];
+    var cProd = findCol(header,'produto'), cQtd = findCol(header,'quantidade'),
+        cData = findCol(header,'data'), cValor = findCol(header,'valor total');
+    if(cProd<0 || cQtd<0 || cData<0) throw new Error('A planilha de entradas não tem as colunas esperadas (Produto, Quantidade, Data/Hora).');
+    var monthAbbrev = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+    var monthAgg = {}, itemsAll = {}, total = 0, valorTotal = 0;
+    for(var i=hIdx+1;i<rows.length;i++){
+      var r = rows[i];
+      var itemVal = r[cProd];
+      if(!itemVal) continue;
+      var dateVal = r[cData];
+      var serial = typeof dateVal==='number' ? dateVal : parseFloat(dateVal);
+      if(!serial || isNaN(serial)) continue;
+      var qty = parseNum(r[cQtd]);
+      var valor = cValor>=0 ? parseNum(r[cValor]) : 0;
+      var d = excelSerialToDate(serial);
+      var monthKey = d.getUTCFullYear()+'-'+('0'+(d.getUTCMonth()+1)).slice(-2);
+      if(!monthAgg[monthKey]) monthAgg[monthKey] = {n:0, qty:0, valor:0, year:d.getUTCFullYear(), month:d.getUTCMonth()};
+      monthAgg[monthKey].n++; monthAgg[monthKey].qty += qty; monthAgg[monthKey].valor += valor;
+      var itemName = String(itemVal).trim();
+      if(!itemsAll[itemName]) itemsAll[itemName] = {qty:0, n:0, valor:0};
+      itemsAll[itemName].qty += qty; itemsAll[itemName].n++; itemsAll[itemName].valor += valor;
+      total++; valorTotal += valor;
+    }
+    if(total===0) throw new Error('Não encontrei nenhuma entrada com data válida na planilha.');
+    var monthKeys = Object.keys(monthAgg).sort();
+    var movDataEntradaNew = monthKeys.map(function(mk, idx){
+      var ma = monthAgg[mk];
+      var label = monthAbbrev[ma.month] + '/' + String(ma.year).slice(2);
+      if(idx===monthKeys.length-1) label += '*';
+      return [label, ma.n];
+    });
+    var topEntradasNew = Object.keys(itemsAll).map(function(k){
+      return [k, Math.round(itemsAll[k].qty*100)/100, itemsAll[k].n, Math.round(itemsAll[k].valor*100)/100];
+    }).sort(function(a,b){return b[1]-a[1];}).slice(0,8);
+    var dates = [];
+    for(var mk2 in monthAgg){ dates.push(mk2); }
+    dates.sort();
+    var firstLabel = movDataEntradaNew[0][0].replace('*','');
+    var lastLabel = movDataEntradaNew[movDataEntradaNew.length-1][0].replace('*','');
+    return {
+      total: total, valorTotal: Math.round(valorTotal*100)/100,
+      movData: movDataEntradaNew, topEntradas: topEntradasNew,
+      dateRange: firstLabel + ' a ' + lastLabel
+    };
   }
 
   function applyWorkbookData(result){
@@ -1677,6 +1978,7 @@
       motivoLabels = result.pedidos.motivoLabels;
       motivoDonutData = result.pedidos.motivoData;
       fornecedores = result.pedidos.fornecedores;
+      comprasPendentesRows = result.pedidos.rows || comprasPendentesRows;
     }
 
     if(result.curadoria){
@@ -1691,10 +1993,25 @@
     populateTop20AlmoxOptions();
     refreshTop20Count();
     buildComprarAgoraTable();
+    buildComprasPendentesTable();
+    populateComprasSituacaoOptions();
+    refreshComprasCount();
     populateSetorSelect();
     if(grupoSorted.length) renderSetor(grupoSorted[0][0]);
     updateStaticTexts();
+    updateMovResumo();
     renderMonthCompare();
+    setTimeout(renderCharts, 0);
+  }
+
+  function applyEntradaData(resultEntrada){
+    movTotalGlobalEntrada = resultEntrada.total;
+    movValorGlobalEntrada = resultEntrada.valorTotal;
+    movDateRangeGlobalEntrada = resultEntrada.dateRange;
+    movDataEntrada = resultEntrada.movData;
+    topEntradas = resultEntrada.topEntradas;
+    buildTopEntradasTable();
+    updateMovResumo();
     setTimeout(renderCharts, 0);
   }
 
@@ -1705,12 +2022,17 @@
   var dataSourceMeta = document.getElementById('dataSourceMeta');
 
   /* ---------- Fonte automática: GitHub (repo público) ---------- */
-  // Planilha principal do repositório — troque owner/repo/branch se o repositório mudar de lugar.
+  // Arquivos do repositório — troque owner/repo/branch se o repositório mudar de lugar.
   var GITHUB_OWNER = 'wesleylima2703';
   var GITHUB_REPO = 'Almoxarifado';
   var GITHUB_BRANCH = 'main';
   var GITHUB_FILE = 'Principal.xlsx';
-  var GITHUB_RAW_URL = 'https://raw.githubusercontent.com/' + GITHUB_OWNER + '/' + GITHUB_REPO + '/' + GITHUB_BRANCH + '/' + GITHUB_FILE;
+  var GITHUB_ENTRADA_FILE = 'movimentacoes_entrada.xlsx';
+  function githubRawUrl(file){
+    return 'https://raw.githubusercontent.com/' + GITHUB_OWNER + '/' + GITHUB_REPO + '/' + GITHUB_BRANCH + '/' + file;
+  }
+  var GITHUB_RAW_URL = githubRawUrl(GITHUB_FILE);
+  var GITHUB_ENTRADA_RAW_URL = githubRawUrl(GITHUB_ENTRADA_FILE);
 
   function setBusy(label){
     refreshBtn.classList.add('loading');
@@ -1740,25 +2062,38 @@
     var result = processWorkbook(wb);
     applyWorkbookData(result);
     stampSource(sourceLabel);
-    var msg = '✓ Dashboard atualizado a partir de ' + sourceLabel + '.';
-    if(result.warnings.length) msg += ' Avisos: ' + result.warnings.join(' ');
-    showBanner(!result.warnings.length, msg);
+    return result;
   }
 
-  // Busca a planilha principal direto do GitHub (raw.githubusercontent.com libera CORS em repositórios públicos).
-  function fetchFromGithub(){
-    return fetch(GITHUB_RAW_URL + '?t=' + Date.now(), {cache:'no-store'}).then(function(resp){
+  // Busca um arquivo direto do GitHub (raw.githubusercontent.com libera CORS em repositórios públicos).
+  function fetchFileFromGithub(url){
+    return fetch(url + '?t=' + Date.now(), {cache:'no-store'}).then(function(resp){
       if(!resp.ok) throw new Error('GitHub respondeu ' + resp.status + '.');
       return resp.arrayBuffer();
     });
   }
+  function fetchFromGithub(){ return fetchFileFromGithub(GITHUB_RAW_URL); }
 
   function refreshFromGithub(isAutoLoad){
     setBusy('Buscando no GitHub...');
-    return fetchFromGithub().then(function(buf){
-      applyArrayBuffer(buf, '"' + GITHUB_FILE + '" (GitHub · ' + GITHUB_OWNER + '/' + GITHUB_REPO + ')');
-      clearBusy();
-      return true;
+    var entradaOk = null, entradaErr = null;
+    var entradaPromise = fetchFileFromGithub(GITHUB_ENTRADA_RAW_URL).then(function(buf){
+      var wbE = XLSX.read(new Uint8Array(buf), {type:'array'});
+      applyEntradaData(processEntradaWorkbook(wbE));
+      entradaOk = true;
+    }).catch(function(err){ entradaOk = false; entradaErr = err.message; });
+
+    return fetchFileFromGithub(GITHUB_RAW_URL).then(function(buf){
+      var result = applyArrayBuffer(buf, '"' + GITHUB_FILE + '" + "' + GITHUB_ENTRADA_FILE + '" (GitHub · ' + GITHUB_OWNER + '/' + GITHUB_REPO + ')');
+      return entradaPromise.then(function(){
+        var msg = '✓ Dashboard atualizado a partir do GitHub — ' + GITHUB_FILE + (entradaOk ? ' + ' + GITHUB_ENTRADA_FILE : '') + '.';
+        var warns = result.warnings.slice();
+        if(entradaOk===false) warns.push('Entradas não atualizadas (' + GITHUB_ENTRADA_FILE + '): ' + entradaErr + '.');
+        if(warns.length) msg += ' Avisos: ' + warns.join(' ');
+        showBanner(!warns.length, msg);
+        clearBusy();
+        return true;
+      });
     }).catch(function(err){
       clearBusy();
       if(!isAutoLoad){
@@ -1780,7 +2115,10 @@
     var reader = new FileReader();
     reader.onload = function(e){
       try{
-        applyArrayBuffer(e.target.result, '"' + file.name + '"');
+        var result = applyArrayBuffer(e.target.result, '"' + file.name + '"');
+        var msg = '✓ Dashboard atualizado a partir de "' + file.name + '". A movimentação de entrada continua com o último dado do GitHub.';
+        if(result.warnings.length) msg += ' Avisos: ' + result.warnings.join(' ');
+        showBanner(!result.warnings.length, msg);
       } catch(err){
         showBanner(false, '⚠ Não consegui ler essa planilha: ' + err.message);
       } finally {
