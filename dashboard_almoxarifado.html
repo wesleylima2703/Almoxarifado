@@ -342,6 +342,7 @@
     <nav class="sidenav" id="sidenav">
       <span class="section-label">Painel</span>
       <a href="#visao-geral" class="active"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg></span>Visão geral</a>
+      <a href="#evolucao"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 17l5-9 4 5 5-9 4 6"/></svg></span>Evolução do estoque</a>
       <a href="#por-setor"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 21V10l7-5 7 5v11"/><path d="M10 21v-6h4v6"/><path d="M17 21V13l4-2v10"/></svg></span>Por setor</a>
       <a href="#grupos"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 20V10M12 20V4M20 20v-7"/></svg></span>Valor por grupo</a>
       <a href="#movimentacao"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 17l5-5 4 4 8-9"/><path d="M14 7h6v6"/></svg></span>Movimentação</a>
@@ -432,6 +433,33 @@
           <div class="sub" id="kpiSemSaidaSub">63,1% nunca movimentaram</div>
           <div class="tap-hint"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg>ver por grupo</div>
         </div>
+      </div>
+    </section>
+
+    <section id="evolucao">
+      <div class="section-head">
+        <h2>Evolução do estoque</h2>
+        <span class="hint" id="evolucaoHint">nenhum snapshot registrado ainda · aba Historico_Snapshot</span>
+      </div>
+      <div class="card">
+        <div class="setor-head">
+          <div>
+            <h3 style="margin-bottom:2px;">Valor em estoque por mês (fechamento)</h3>
+            <div class="card-sub" style="margin-bottom:0;">último snapshot registrado em cada mês · mostra se o estoque está subindo ou descendo</div>
+          </div>
+          <button class="refresh-btn" id="saveSnapshotBtn" type="button" title="Adiciona um snapshot de hoje ao histórico e baixa a planilha atualizada">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><path d="M17 21v-8H7v8M7 3v5h8"/></svg>
+            <span id="saveSnapshotBtnLabel">Salvar snapshot de hoje</span>
+          </button>
+        </div>
+        <div class="chart-wrap" style="height:260px;">
+          <canvas id="chartEvolucao"></canvas>
+        </div>
+        <div class="compare-bar">
+          <span class="compare-hint" id="compareHintEstoque">Clique em uma barra do gráfico para ver o detalhe do mês.</span>
+          <button class="clear-btn" id="clearCompareEstoque" hidden type="button">Limpar seleção</button>
+        </div>
+        <div class="compare-panel" id="comparePanelEstoque"></div>
       </div>
     </section>
 
@@ -662,6 +690,13 @@
       <div class="section-head">
         <h2>Pedidos de compra</h2>
         <span class="hint" id="pedidosHint">25 pedidos registrados · aba Histórico de Pedidos</span>
+      </div>
+      <div class="card" style="margin-bottom:14px;">
+        <h3>Gasto em compras por mês</h3>
+        <div class="card-sub" id="comprasValorHint">soma de Quantidade × Valor Unitário, por mês do pedido</div>
+        <div class="chart-wrap" style="height:220px;">
+          <canvas id="chartCompras"></canvas>
+        </div>
       </div>
       <div class="grid cols-3">
         <div class="card">
@@ -1075,6 +1110,18 @@
     ["Sacola verde reforçada 50x60 5 kg","Almoxarifado","5 locais",317,18655.64,39]
   ];
 
+  // ---- Evolução do estoque: snapshots mensais (aba Historico_Snapshot, opcional) ----
+  var SNAPSHOT_HEADERS = ['Data','Valor Total em Estoque','Total Cadastros','Com Saldo','Zerado','Negativo','Giro Ativo','Itens Curados'];
+  var movDataEstoque = []; // [[label, valorTotal], ...] — um ponto por mês (fechamento)
+  var snapshotCount = 0;
+  var selectedMonthsEstoque = [];
+  var currentWorkbook = null; // último workbook carregado (fetch ou upload), usado por "Salvar snapshot de hoje"
+
+  // ---- Gasto em compras por mês (aba Historico_Pedidos, coluna "Valor Unitário") ----
+  var movDataCompras = []; // [[label, valorGasto], ...]
+  var pedidosComValorCount = 0;
+  var pedidosTotalParaValor = 0;
+
   function fmtBRL(v){
     return v.toLocaleString('pt-BR', {style:'currency', currency:'BRL', maximumFractionDigits:0});
   }
@@ -1346,6 +1393,74 @@
     Chart.defaults.font.family = "'IBM Plex Sans', sans-serif";
     Chart.defaults.font.size = 11.5;
     Chart.defaults.color = text;
+
+    var elChartEvolucao = document.getElementById('chartEvolucao');
+    if(elChartEvolucao && movDataEstoque.length){
+      var emptyMsgEl = elChartEvolucao.parentElement.querySelector('.chart-empty-msg');
+      if(emptyMsgEl) emptyMsgEl.remove();
+      charts.evolucao = new Chart(elChartEvolucao, {
+        type:'bar',
+        data:{
+          labels: movDataEstoque.map(function(d){return d[0];}),
+          datasets:[{
+            data: movDataEstoque.map(function(d){return d[1];}),
+            backgroundColor: movDataEstoque.map(function(d){ return selectedMonthsEstoque.indexOf(d[0])>=0 ? accent : hexToRgba(accent, isDark()?0.28:0.35); }),
+            borderRadius: 4, maxBarThickness: 40
+          }]
+        },
+        options:{
+          responsive:true, maintainAspectRatio:false,
+          onHover:function(evt,elements){ evt.native.target.style.cursor = elements.length ? 'pointer' : 'default'; },
+          onClick:function(evt,elements){
+            if(!elements.length) return;
+            var idxV = elements[0].index;
+            toggleMonthEstoque(movDataEstoque[idxV][0]);
+          },
+          plugins:{ legend:{display:false},
+            tooltip:{ callbacks:{ label:function(ctx){ return fmtBRL(ctx.parsed.y)+' · clique para comparar'; } } } },
+          scales:{
+            x:{ grid:{display:false} },
+            y:{ grid:{color:grid}, beginAtZero:false, ticks:{ callback:function(v){ return 'R$ '+(v/1000).toFixed(0)+'k'; } } }
+          }
+        }
+      });
+    } else if(elChartEvolucao){
+      if(!elChartEvolucao.parentElement.querySelector('.chart-empty-msg')){
+        elChartEvolucao.insertAdjacentHTML('afterend',
+          '<div class="chart-empty-msg" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--text-faint);font-size:12.5px;text-align:center;padding:20px;">Nenhum snapshot registrado ainda. Clique em "Salvar snapshot de hoje" pra começar a acompanhar a evolução.</div>');
+      }
+    }
+
+    var elChartCompras = document.getElementById('chartCompras');
+    if(elChartCompras && movDataCompras.length){
+      var emptyMsgCompras = elChartCompras.parentElement.querySelector('.chart-empty-msg');
+      if(emptyMsgCompras) emptyMsgCompras.remove();
+      charts.compras = new Chart(elChartCompras, {
+        type:'bar',
+        data:{
+          labels: movDataCompras.map(function(d){return d[0];}),
+          datasets:[{
+            data: movDataCompras.map(function(d){return d[1];}),
+            backgroundColor: hexToRgba(warn, isDark()?0.55:0.65),
+            borderRadius: 4, maxBarThickness: 36
+          }]
+        },
+        options:{
+          responsive:true, maintainAspectRatio:false,
+          plugins:{ legend:{display:false},
+            tooltip:{ callbacks:{ label:function(ctx){ return fmtBRL(ctx.parsed.y); } } } },
+          scales:{
+            x:{ grid:{display:false} },
+            y:{ grid:{color:grid}, beginAtZero:true, ticks:{ callback:function(v){ return 'R$ '+(v/1000).toFixed(0)+'k'; } } }
+          }
+        }
+      });
+    } else if(elChartCompras){
+      if(!elChartCompras.parentElement.querySelector('.chart-empty-msg')){
+        elChartCompras.insertAdjacentHTML('afterend',
+          '<div class="chart-empty-msg" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--text-faint);font-size:12.5px;text-align:center;padding:20px;">Nenhum pedido com Valor Unitário preenchido ainda na aba Historico_Pedidos.</div>');
+      }
+    }
 
     charts.grupo = new Chart(document.getElementById('chartGrupo'), {
       type: 'bar',
@@ -1788,6 +1903,57 @@
 
   clearCompareEntradaBtn.addEventListener('click', function(){ selectedMonthsEntrada = []; renderMonthCompareEntrada(); setTimeout(renderCharts, 0); });
 
+  var compareHintEstoque = document.getElementById('compareHintEstoque');
+  var comparePanelEstoque = document.getElementById('comparePanelEstoque');
+  var clearCompareEstoqueBtn = document.getElementById('clearCompareEstoque');
+
+  function toggleMonthEstoque(month){
+    var idx = selectedMonthsEstoque.indexOf(month);
+    if(idx>=0){ selectedMonthsEstoque.splice(idx,1); }
+    else{
+      selectedMonthsEstoque.push(month);
+      if(selectedMonthsEstoque.length>2) selectedMonthsEstoque.shift();
+    }
+    renderMonthCompareEstoque();
+    setTimeout(renderCharts, 0);
+  }
+
+  function monthCardEstoque(month){
+    var v = movDataEstoque.filter(function(m){return m[0]===month;})[0][1];
+    return '<div class="compare-col">'+
+      '<h4>'+month+'</h4>'+
+      '<div class="compare-row" style="border-bottom:none;"><span>Valor em estoque</span><span class="v">'+fmtBRL(v)+'</span></div>'+
+      '</div>';
+  }
+
+  function renderMonthCompareEstoque(){
+    if(selectedMonthsEstoque.length===0){
+      compareHintEstoque.textContent = 'Clique em uma barra do gráfico para ver o detalhe do mês.';
+      clearCompareEstoqueBtn.hidden = true;
+      comparePanelEstoque.className = 'compare-panel';
+      comparePanelEstoque.innerHTML = '';
+      return;
+    }
+    clearCompareEstoqueBtn.hidden = false;
+    if(selectedMonthsEstoque.length===1){
+      compareHintEstoque.innerHTML = '<span class="chip">'+selectedMonthsEstoque[0]+'</span> selecionado — clique em outro mês para comparar';
+      comparePanelEstoque.className = 'compare-panel show';
+      comparePanelEstoque.innerHTML = '<div class="compare-grid single">'+monthCardEstoque(selectedMonthsEstoque[0])+'</div>';
+    } else {
+      compareHintEstoque.innerHTML = selectedMonthsEstoque.map(function(m){return '<span class="chip">'+m+'</span>';}).join(' vs ');
+      var v1 = movDataEstoque.filter(function(m){return m[0]===selectedMonthsEstoque[0];})[0][1];
+      var v2 = movDataEstoque.filter(function(m){return m[0]===selectedMonthsEstoque[1];})[0][1];
+      var deltaV = v2 - v1;
+      var pctV = v1 ? (deltaV/v1*100) : 0;
+      var dirWordV = deltaV>=0 ? 'a mais' : 'a menos';
+      comparePanelEstoque.className = 'compare-panel show';
+      comparePanelEstoque.innerHTML = '<div class="compare-grid">'+monthCardEstoque(selectedMonthsEstoque[0])+monthCardEstoque(selectedMonthsEstoque[1])+'</div>'+
+        '<div class="compare-delta">'+selectedMonthsEstoque[1]+' teve <b>'+fmtBRL(Math.abs(deltaV))+' '+dirWordV+'</b> em estoque que '+selectedMonthsEstoque[0]+' (<b>'+(pctV>=0?'+':'')+pctV.toFixed(1)+'%</b>)</div>';
+    }
+  }
+
+  clearCompareEstoqueBtn.addEventListener('click', function(){ selectedMonthsEstoque = []; renderMonthCompareEstoque(); setTimeout(renderCharts, 0); });
+
   /* ---------- Textos dinâmicos (KPIs, hints, callouts) ---------- */
   function updateStaticTexts(){
     document.getElementById('kpiValorTotal').textContent = 'R$ '+(totalValorGeral/1e6).toLocaleString('pt-BR',{maximumFractionDigits:2})+'M';
@@ -1833,6 +1999,20 @@
   function fmtDateBR(d){
     return ('0'+d.getUTCDate()).slice(-2)+'/'+('0'+(d.getUTCMonth()+1)).slice(-2)+'/'+d.getUTCFullYear();
   }
+  // Aceita data como serial do Excel (número) ou texto "dd/mm/aaaa" — retorna Date (UTC) ou null.
+  function parseDateFlexible(v){
+    if(v===undefined || v===null || v==='') return null;
+    if(typeof v==='number' && !isNaN(v)) return excelSerialToDate(v);
+    var s = String(v).trim();
+    var m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+    if(m) return new Date(Date.UTC(+m[3], +m[2]-1, +m[1]));
+    var serial = parseFloat(s);
+    if(!isNaN(serial)) return excelSerialToDate(serial);
+    return null;
+  }
+  function dateToExcelSerial(d){
+    return Math.round((Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()) - Date.UTC(1899,11,30)) / 86400000);
+  }
 
   function parseNum(v){
     if(typeof v === 'number') return v;
@@ -1867,6 +2047,7 @@
 
   function processWorkbook(wb){
     var warnings = [];
+    var monthAbbrev = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
     function getSheetRows(name){
       if(wb.SheetNames.indexOf(name) < 0) return null;
       return XLSX.utils.sheet_to_json(wb.Sheets[name], {header:1, raw:true, defval:''});
@@ -2091,8 +2272,10 @@
         var cSit = findCol(pHeader,'situa'), cMot = findCol(pHeader,'motivo'),
             cForn = findCol(pHeader,'fornecedor'), cProdP = findCol(pHeader,'produto'),
             cData = findCol(pHeader,'data'), cQtdP = findCol(pHeader,'quantidade'),
-            cPrevisao = findCol(pHeader,'previs'), cObsP = findCol(pHeader,'observa');
+            cPrevisao = findCol(pHeader,'previs'), cObsP = findCol(pHeader,'observa'),
+            cValorUnit = findCol(pHeader,'valor unit');
         var sitCounts = {}, motCounts = {}, fornCounts = {}, pedidosTotal = 0, pedidosRowsFull = [], fornecedorHist = {};
+        var monthAggCompras = {}, comValorCount = 0;
         for(var k=pIdx+1;k<pedidosRows.length;k++){
           var r3 = pedidosRows[k];
           var prodVal = cProdP>=0 ? r3[cProdP] : '';
@@ -2117,6 +2300,18 @@
           var previsaoVal = cPrevisao>=0 ? String(r3[cPrevisao]||'').trim() : '';
           var obsVal = cObsP>=0 ? String(r3[cObsP]||'').trim() : '';
 
+          // Gasto em compras: Quantidade × Valor Unitário (quando ambos preenchidos). Sem quantidade, assume 1 unidade.
+          var valorUnitVal = cValorUnit>=0 ? r3[cValorUnit] : null;
+          if(valorUnitVal!==null && valorUnitVal!==undefined && String(valorUnitVal).trim()!=='' && dataSerial && !isNaN(dataSerial)){
+            var valorUnitNum = parseNum(valorUnitVal);
+            var valorLinha = valorUnitNum * (qtdNum || 1);
+            comValorCount++;
+            var dCompra = excelSerialToDate(dataSerial);
+            var mkCompra = dCompra.getUTCFullYear()+'-'+('0'+(dCompra.getUTCMonth()+1)).slice(-2);
+            if(!monthAggCompras[mkCompra]) monthAggCompras[mkCompra] = {valor:0, year:dCompra.getUTCFullYear(), month:dCompra.getUTCMonth()};
+            monthAggCompras[mkCompra].valor += valorLinha;
+          }
+
           // Último fornecedor conhecido: usa o próprio, ou o último registrado antes (mesmo produto, ordem cronológica das linhas).
           var prodKeyForn = normalize(prodVal);
           var ultimoForn = fornVal || fornecedorHist[prodKeyForn] || '';
@@ -2138,11 +2333,19 @@
             var pa = a[5]==='Pendente' ? 0 : 1, pb = b[5]==='Pendente' ? 0 : 1;
             return pa - pb;
           });
+          var monthKeysCompras = Object.keys(monthAggCompras).sort();
+          var movDataComprasNew = monthKeysCompras.map(function(mk, idx){
+            var mc = monthAggCompras[mk];
+            var label = monthAbbrev[mc.month] + '/' + String(mc.year).slice(2);
+            if(idx===monthKeysCompras.length-1) label += '*';
+            return [label, Math.round(mc.valor*100)/100];
+          });
           pedidosResult = {
             total: pedidosTotal,
             situacaoLabels: sitLabels, situacaoData: sitLabels.map(function(l){return sitCounts[l];}),
             motivoLabels: motLabels2, motivoData: motLabels2.map(function(l){return motCounts[l];}),
-            fornecedores: fornArr, rows: pedidosRowsFull
+            fornecedores: fornArr, rows: pedidosRowsFull,
+            movDataCompras: movDataComprasNew, pedidosComValorCount: comValorCount
           };
         }
       }
@@ -2197,7 +2400,42 @@
       return sa.dataSaida>0 && (todaySerial - sa.dataSaida) <= GIRO_ATIVO_DIAS && (todaySerial - sa.dataSaida) >= 0;
     }).length;
 
-    return { base: baseData, saidas: saidasResult, entradas: entradasResult, pedidos: pedidosResult, curadoria: curadoriaResult, warnings: warnings };
+    // Evolução do estoque: snapshots (aba opcional Historico_Snapshot) — um ponto por mês (fechamento = último snapshot do mês).
+    var snapshotResult = null;
+    var snapshotRowsRaw = getSheetRows('Historico_Snapshot');
+    if(snapshotRowsRaw){
+      var ssIdx = findHeaderRowIndex(snapshotRowsRaw, ['data']);
+      if(ssIdx>=0){
+        var ssHeader = snapshotRowsRaw[ssIdx];
+        var ssData = findCol(ssHeader,'data'), ssValor = findCol(ssHeader,'valor total em estoque');
+        if(ssData>=0 && ssValor>=0){
+          var snaps = [];
+          for(var sIdx=ssIdx+1; sIdx<snapshotRowsRaw.length; sIdx++){
+            var rs = snapshotRowsRaw[sIdx];
+            var dParsed = parseDateFlexible(rs[ssData]);
+            var valorRaw = rs[ssValor];
+            if(!dParsed || valorRaw===undefined || valorRaw===null || String(valorRaw).trim()==='') continue;
+            snaps.push({ dateSerial: dateToExcelSerial(dParsed), date: dParsed, valor: parseNum(valorRaw) });
+          }
+          snaps.sort(function(a,b){ return a.dateSerial - b.dateSerial; });
+          var monthlyMap = {};
+          snaps.forEach(function(s){
+            var mk = s.date.getUTCFullYear()+'-'+('0'+(s.date.getUTCMonth()+1)).slice(-2);
+            if(!monthlyMap[mk] || s.dateSerial >= monthlyMap[mk].dateSerial) monthlyMap[mk] = s;
+          });
+          var monthKeysS = Object.keys(monthlyMap).sort();
+          var movDataEstoqueNew = monthKeysS.map(function(mk, idx){
+            var s = monthlyMap[mk];
+            var label = monthAbbrev[s.date.getUTCMonth()] + '/' + String(s.date.getUTCFullYear()).slice(2);
+            if(idx===monthKeysS.length-1) label += '*';
+            return [label, Math.round(s.valor*100)/100];
+          });
+          snapshotResult = { movDataEstoque: movDataEstoqueNew, count: snaps.length };
+        }
+      }
+    }
+
+    return { base: baseData, saidas: saidasResult, entradas: entradasResult, pedidos: pedidosResult, curadoria: curadoriaResult, snapshot: snapshotResult, warnings: warnings };
   }
 
   function applyWorkbookData(result){
@@ -2243,6 +2481,18 @@
       selectedMonthsEntrada = [];
     }
 
+    if(result.snapshot){
+      movDataEstoque = result.snapshot.movDataEstoque;
+      snapshotCount = result.snapshot.count;
+    } else {
+      movDataEstoque = [];
+      snapshotCount = 0;
+    }
+    selectedMonthsEstoque = [];
+    document.getElementById('evolucaoHint').textContent = snapshotCount
+      ? snapshotCount.toLocaleString('pt-BR')+' snapshot(s) registrado(s) · aba Historico_Snapshot'
+      : 'nenhum snapshot registrado ainda · clique em "Salvar snapshot de hoje" pra começar · aba Historico_Snapshot';
+
     if(result.pedidos){
       pedidosTotalGlobal = result.pedidos.total;
       situacaoLabels = result.pedidos.situacaoLabels;
@@ -2251,6 +2501,11 @@
       motivoDonutData = result.pedidos.motivoData;
       fornecedores = result.pedidos.fornecedores;
       comprasPendentesRows = result.pedidos.rows || comprasPendentesRows;
+      movDataCompras = result.pedidos.movDataCompras || [];
+      pedidosComValorCount = result.pedidos.pedidosComValorCount || 0;
+      pedidosTotalParaValor = pedidosTotalGlobal;
+      document.getElementById('comprasValorHint').textContent =
+        pedidosComValorCount.toLocaleString('pt-BR')+' de '+pedidosTotalGlobal.toLocaleString('pt-BR')+' pedidos com Valor Unitário preenchido · soma Quantidade × Valor Unitário, por mês do pedido';
     }
 
     if(result.curadoria){
@@ -2276,6 +2531,7 @@
     updateMovResumo();
     renderMonthCompare();
     renderMonthCompareEntrada();
+    renderMonthCompareEstoque();
     setTimeout(renderCharts, 0);
   }
 
@@ -2320,10 +2576,82 @@
   function applyArrayBuffer(buf, sourceLabel){
     var data = new Uint8Array(buf);
     var wb = XLSX.read(data, {type:'array'});
+    currentWorkbook = wb;
     var result = processWorkbook(wb);
     applyWorkbookData(result);
     stampSource(sourceLabel);
     return result;
+  }
+
+  /* ---------- Salvar snapshot de hoje (Historico_Snapshot) ---------- */
+  function saveSnapshotToWorkbook(){
+    var saveBtn = document.getElementById('saveSnapshotBtn');
+    var saveBtnLabel = document.getElementById('saveSnapshotBtnLabel');
+    if(!currentWorkbook){
+      showBanner(false, '⚠ Carregue uma planilha primeiro (Atualizar dados ou Enviar arquivo) antes de salvar um snapshot.');
+      return;
+    }
+    saveBtn.disabled = true;
+    saveBtnLabel.textContent = 'Salvando...';
+    try{
+      var wb = currentWorkbook;
+      var sheetName = 'Historico_Snapshot';
+      var rows, headerIdx = 0;
+      if(wb.SheetNames.indexOf(sheetName) >= 0){
+        rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], {header:1, raw:true, defval:''});
+        var found = findHeaderRowIndex(rows, ['data']);
+        if(found>=0) headerIdx = found;
+        else { rows = [SNAPSHOT_HEADERS.slice()]; headerIdx = 0; }
+      } else {
+        rows = [SNAPSHOT_HEADERS.slice()];
+        headerIdx = 0;
+      }
+      var header = rows[headerIdx];
+      var cData = findCol(header,'data'), cValor = findCol(header,'valor total em estoque'),
+          cCad = findCol(header,'total cadastros'), cComSaldo = findCol(header,'com saldo'),
+          cZerado = findCol(header,'zerado'), cNeg = findCol(header,'negativo'),
+          cGiro = findCol(header,'giro ativo'), cCurados = findCol(header,'curados');
+      if(cData<0 || cValor<0){
+        rows = [SNAPSHOT_HEADERS.slice()]; headerIdx = 0; header = rows[0];
+        cData=0; cValor=1; cCad=2; cComSaldo=3; cZerado=4; cNeg=5; cGiro=6; cCurados=7;
+      }
+
+      var today = new Date();
+      var todaySerial = dateToExcelSerial(today);
+      var rowValues = [];
+      rowValues[cData] = todaySerial;
+      rowValues[cValor] = Math.round(totalValorGeral*100)/100;
+      if(cCad>=0) rowValues[cCad] = totalCadastrosGlobal;
+      if(cComSaldo>=0) rowValues[cComSaldo] = comSaldoGlobal;
+      if(cZerado>=0) rowValues[cZerado] = zeradoGlobal;
+      if(cNeg>=0) rowValues[cNeg] = negativoGlobal;
+      if(cGiro>=0) rowValues[cGiro] = giroAtivoTotal;
+      if(cCurados>=0) rowValues[cCurados] = curadoriaTotalGlobal;
+
+      // Se já existe um snapshot de hoje, atualiza a linha em vez de duplicar.
+      var targetRowIdx = -1;
+      for(var i=headerIdx+1;i<rows.length;i++){
+        var d = parseDateFlexible(rows[i][cData]);
+        if(d && dateToExcelSerial(d)===todaySerial){ targetRowIdx = i; break; }
+      }
+      if(targetRowIdx>=0) rows[targetRowIdx] = rowValues;
+      else rows.push(rowValues);
+
+      var newSheet = XLSX.utils.aoa_to_sheet(rows);
+      if(wb.SheetNames.indexOf(sheetName) >= 0) wb.Sheets[sheetName] = newSheet;
+      else XLSX.utils.book_append_sheet(wb, newSheet, sheetName);
+
+      XLSX.writeFile(wb, 'Principal.xlsx');
+
+      var result2 = processWorkbook(wb);
+      applyWorkbookData(result2);
+      showBanner(true, '✓ Snapshot de hoje salvo — baixado como "Principal.xlsx". Substitua seu arquivo de trabalho por esse baixado (ou suba pro GitHub) pra manter o histórico.');
+    } catch(err){
+      showBanner(false, '⚠ Não consegui salvar o snapshot: ' + err.message);
+    } finally {
+      saveBtn.disabled = false;
+      saveBtnLabel.textContent = 'Salvar snapshot de hoje';
+    }
   }
 
   // Busca a planilha direto do GitHub (raw.githubusercontent.com libera CORS em repositórios públicos).
@@ -2356,6 +2684,7 @@
   refreshBtn.addEventListener('click', function(){ refreshFromGithub(false); });
 
   document.getElementById('manualUploadBtn').addEventListener('click', function(){ fileInput.click(); });
+  document.getElementById('saveSnapshotBtn').addEventListener('click', saveSnapshotToWorkbook);
 
   fileInput.addEventListener('change', function(){
     var file = fileInput.files && fileInput.files[0];
