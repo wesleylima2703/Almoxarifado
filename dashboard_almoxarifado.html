@@ -1,3 +1,4 @@
+<meta charset="utf-8">
 <title>Almoxarifado Boibom</title>
 <meta name="description" content="Painel de controle do estoque do almoxarifado: valor parado, saúde dos cadastros, movimentação e itens críticos de compra.">
 
@@ -351,8 +352,8 @@
     </nav>
 
     <div class="side-foot">
-      <span>Base: Gestran · export manual</span>
-      <span>Última entrada registrada: 18/09/2026</span>
+      <span>Base: Gestran · sincronizado do GitHub</span>
+      <span id="sideFootRepo">wesleylima2703/Almoxarifado · main</span>
     </div>
   </aside>
 
@@ -360,13 +361,17 @@
     <div class="topbar">
       <div>
         <h1>Painel do Almoxarifado</h1>
-        <div class="meta" id="dataSourceMeta">Dados de exemplo · export de 18/09/2026 — clique em "Atualizar dados" para carregar sua planilha atual</div>
+        <div class="meta" id="dataSourceMeta">Dados de exemplo · buscando a planilha mais recente no GitHub automaticamente…</div>
       </div>
       <div class="topbar-right">
         <input type="file" id="fileInput" accept=".xlsx,.xlsm" hidden>
-        <button class="refresh-btn" id="refreshBtn" type="button">
+        <button class="refresh-btn" id="refreshBtn" type="button" title="Busca a versão mais recente de Principal.xlsx direto do GitHub">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 0115.4-6.36M21 12a9 9 0 01-15.4 6.36"/><path d="M3 4v6h6M21 20v-6h-6"/></svg>
           <span id="refreshBtnLabel">Atualizar dados</span>
+        </button>
+        <button class="theme-toggle" id="manualUploadBtn" type="button" title="Selecionar um arquivo .xlsx manualmente do computador">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="width:13px;height:13px;"><path d="M12 3v12M7 8l5-5 5 5"/><path d="M4 17v3a2 2 0 002 2h12a2 2 0 002-2v-3"/></svg>
+          <span>Enviar arquivo</span>
         </button>
         <button class="theme-toggle" id="themeToggle" type="button">
           <span id="themeIcon">☾</span><span id="themeLabel">Modo escuro</span>
@@ -1699,50 +1704,100 @@
   var uploadBanner = document.getElementById('uploadBanner');
   var dataSourceMeta = document.getElementById('dataSourceMeta');
 
-  refreshBtn.addEventListener('click', function(){ fileInput.click(); });
+  /* ---------- Fonte automática: GitHub (repo público) ---------- */
+  // Planilha principal do repositório — troque owner/repo/branch se o repositório mudar de lugar.
+  var GITHUB_OWNER = 'wesleylima2703';
+  var GITHUB_REPO = 'Almoxarifado';
+  var GITHUB_BRANCH = 'main';
+  var GITHUB_FILE = 'Principal.xlsx';
+  var GITHUB_RAW_URL = 'https://raw.githubusercontent.com/' + GITHUB_OWNER + '/' + GITHUB_REPO + '/' + GITHUB_BRANCH + '/' + GITHUB_FILE;
+
+  function setBusy(label){
+    refreshBtn.classList.add('loading');
+    refreshBtn.disabled = true;
+    refreshBtnLabel.textContent = label;
+    uploadBanner.hidden = true;
+  }
+  function clearBusy(){
+    refreshBtn.classList.remove('loading');
+    refreshBtn.disabled = false;
+    refreshBtnLabel.textContent = 'Atualizar dados';
+  }
+  function showBanner(ok, text){
+    uploadBanner.className = 'upload-banner ' + (ok ? 'ok' : 'err');
+    uploadBanner.textContent = text;
+    uploadBanner.hidden = false;
+  }
+  function stampSource(label){
+    var now = new Date();
+    var hh = ('0'+now.getHours()).slice(-2), mm=('0'+now.getMinutes()).slice(-2);
+    dataSourceMeta.textContent = label + ' · atualizado às ' + hh + ':' + mm;
+  }
+
+  function applyArrayBuffer(buf, sourceLabel){
+    var data = new Uint8Array(buf);
+    var wb = XLSX.read(data, {type:'array'});
+    var result = processWorkbook(wb);
+    applyWorkbookData(result);
+    stampSource(sourceLabel);
+    var msg = '✓ Dashboard atualizado a partir de ' + sourceLabel + '.';
+    if(result.warnings.length) msg += ' Avisos: ' + result.warnings.join(' ');
+    showBanner(!result.warnings.length, msg);
+  }
+
+  // Busca a planilha principal direto do GitHub (raw.githubusercontent.com libera CORS em repositórios públicos).
+  function fetchFromGithub(){
+    return fetch(GITHUB_RAW_URL + '?t=' + Date.now(), {cache:'no-store'}).then(function(resp){
+      if(!resp.ok) throw new Error('GitHub respondeu ' + resp.status + '.');
+      return resp.arrayBuffer();
+    });
+  }
+
+  function refreshFromGithub(isAutoLoad){
+    setBusy('Buscando no GitHub...');
+    return fetchFromGithub().then(function(buf){
+      applyArrayBuffer(buf, '"' + GITHUB_FILE + '" (GitHub · ' + GITHUB_OWNER + '/' + GITHUB_REPO + ')');
+      clearBusy();
+      return true;
+    }).catch(function(err){
+      clearBusy();
+      if(!isAutoLoad){
+        showBanner(false, '⚠ Não consegui buscar a planilha automaticamente no GitHub (' + err.message + '). Selecione o arquivo manualmente.');
+        fileInput.click();
+      }
+      return false;
+    });
+  }
+
+  refreshBtn.addEventListener('click', function(){ refreshFromGithub(false); });
+
+  document.getElementById('manualUploadBtn').addEventListener('click', function(){ fileInput.click(); });
 
   fileInput.addEventListener('change', function(){
     var file = fileInput.files && fileInput.files[0];
     if(!file) return;
-    refreshBtn.classList.add('loading');
-    refreshBtnLabel.textContent = 'Lendo planilha...';
-    uploadBanner.hidden = true;
+    setBusy('Lendo planilha...');
     var reader = new FileReader();
     reader.onload = function(e){
       try{
-        var data = new Uint8Array(e.target.result);
-        var wb = XLSX.read(data, {type:'array'});
-        var result = processWorkbook(wb);
-        applyWorkbookData(result);
-        var now = new Date();
-        var hh = ('0'+now.getHours()).slice(-2), mm=('0'+now.getMinutes()).slice(-2);
-        dataSourceMeta.textContent = 'Dados de "'+file.name+'" · atualizado às '+hh+':'+mm;
-        var msg = '✓ Dashboard atualizado a partir de "'+file.name+'".';
-        if(result.warnings.length) msg += ' Avisos: ' + result.warnings.join(' ');
-        uploadBanner.className = 'upload-banner ' + (result.warnings.length ? 'err' : 'ok');
-        uploadBanner.textContent = msg;
-        uploadBanner.hidden = false;
+        applyArrayBuffer(e.target.result, '"' + file.name + '"');
       } catch(err){
-        uploadBanner.className = 'upload-banner err';
-        uploadBanner.textContent = '⚠ Não consegui ler essa planilha: ' + err.message;
-        uploadBanner.hidden = false;
+        showBanner(false, '⚠ Não consegui ler essa planilha: ' + err.message);
       } finally {
-        refreshBtn.classList.remove('loading');
-        refreshBtnLabel.textContent = 'Atualizar dados';
+        clearBusy();
         fileInput.value = '';
       }
     };
     reader.onerror = function(){
-      uploadBanner.className = 'upload-banner err';
-      uploadBanner.textContent = '⚠ Não consegui abrir o arquivo selecionado.';
-      uploadBanner.hidden = false;
-      refreshBtn.classList.remove('loading');
-      refreshBtnLabel.textContent = 'Atualizar dados';
+      showBanner(false, '⚠ Não consegui abrir o arquivo selecionado.');
+      clearBusy();
     };
     reader.readAsArrayBuffer(file);
   });
 
   renderCharts();
+  // Ao abrir o painel, já tenta puxar a versão mais recente da planilha principal do GitHub.
+  refreshFromGithub(true);
   window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function(){
     if(!document.documentElement.getAttribute('data-theme')) renderCharts();
   });
