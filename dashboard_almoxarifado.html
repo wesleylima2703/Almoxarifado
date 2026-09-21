@@ -597,6 +597,14 @@
           </div>
         </div>
       </div>
+
+      <div class="card" style="margin-top:14px;">
+        <h3>Gasto em compras por mês</h3>
+        <div class="card-sub" id="comprasValorHint">soma do "Valor Total" da aba Historico_Entradas, por mês em que o material entrou no estoque</div>
+        <div class="chart-wrap" style="height:220px;">
+          <canvas id="chartCompras"></canvas>
+        </div>
+      </div>
     </section>
 
     <section id="criticos">
@@ -690,13 +698,6 @@
       <div class="section-head">
         <h2>Pedidos de compra</h2>
         <span class="hint" id="pedidosHint">25 pedidos registrados · aba Histórico de Pedidos</span>
-      </div>
-      <div class="card" style="margin-bottom:14px;">
-        <h3>Gasto em compras por mês</h3>
-        <div class="card-sub" id="comprasValorHint">soma de Quantidade × Valor Unitário, por mês do pedido</div>
-        <div class="chart-wrap" style="height:220px;">
-          <canvas id="chartCompras"></canvas>
-        </div>
       </div>
       <div class="grid cols-3">
         <div class="card">
@@ -1117,10 +1118,8 @@
   var selectedMonthsEstoque = [];
   var currentWorkbook = null; // último workbook carregado (fetch ou upload), usado por "Salvar snapshot de hoje"
 
-  // ---- Gasto em compras por mês (aba Historico_Pedidos, coluna "Valor Unitário") ----
+  // ---- Gasto em compras por mês (aba Historico_Entradas — valor do que realmente entrou no estoque) ----
   var movDataCompras = []; // [[label, valorGasto], ...]
-  var pedidosComValorCount = 0;
-  var pedidosTotalParaValor = 0;
 
   function fmtBRL(v){
     return v.toLocaleString('pt-BR', {style:'currency', currency:'BRL', maximumFractionDigits:0});
@@ -1441,7 +1440,7 @@
           labels: movDataCompras.map(function(d){return d[0];}),
           datasets:[{
             data: movDataCompras.map(function(d){return d[1];}),
-            backgroundColor: hexToRgba(warn, isDark()?0.55:0.65),
+            backgroundColor: hexToRgba(good, isDark()?0.55:0.65),
             borderRadius: 4, maxBarThickness: 36
           }]
         },
@@ -1458,7 +1457,7 @@
     } else if(elChartCompras){
       if(!elChartCompras.parentElement.querySelector('.chart-empty-msg')){
         elChartCompras.insertAdjacentHTML('afterend',
-          '<div class="chart-empty-msg" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--text-faint);font-size:12.5px;text-align:center;padding:20px;">Nenhum pedido com Valor Unitário preenchido ainda na aba Historico_Pedidos.</div>');
+          '<div class="chart-empty-msg" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--text-faint);font-size:12.5px;text-align:center;padding:20px;">Nenhuma entrada com valor registrado ainda na aba Historico_Entradas.</div>');
       }
     }
 
@@ -2236,12 +2235,13 @@
           }
           var monthKeysE = Object.keys(monthAggE).sort();
           if(monthKeysE.length){
-            var movDataEntradaNew = [], monthDetailEntradaNew = {};
+            var movDataEntradaNew = [], movDataEntradaValorNew = [], monthDetailEntradaNew = {};
             monthKeysE.forEach(function(mk, idx){
               var ma = monthAggE[mk];
               var label = monthAbbrev[ma.month] + '/' + String(ma.year).slice(2);
               if(idx===monthKeysE.length-1) label += '*';
               movDataEntradaNew.push([label, ma.n]);
+              movDataEntradaValorNew.push([label, Math.round(ma.valor*100)/100]);
               var topItemsArrE = Object.keys(ma.items).map(function(k){ return [k, ma.items[k].n, Math.round(ma.items[k].qty*100)/100]; })
                 .sort(function(a,b){return b[1]-a[1];}).slice(0,3);
               var topAlmoxEntryE = Object.keys(ma.almox).map(function(k){return [k, ma.almox[k]];}).sort(function(a,b){return b[1]-a[1];})[0] || ['—',0];
@@ -2254,7 +2254,8 @@
             var lastLabelE = movDataEntradaNew[movDataEntradaNew.length-1][0].replace('*','');
             entradasResult = {
               total: totalEntradas, valorTotal: Math.round(valorTotalEntradas*100)/100,
-              movData: movDataEntradaNew, monthDetail: monthDetailEntradaNew, topEntradas: topEntradasNew,
+              movData: movDataEntradaNew, movDataValor: movDataEntradaValorNew,
+              monthDetail: monthDetailEntradaNew, topEntradas: topEntradasNew,
               dateRange: firstLabelE + ' a ' + lastLabelE
             };
           }
@@ -2272,10 +2273,8 @@
         var cSit = findCol(pHeader,'situa'), cMot = findCol(pHeader,'motivo'),
             cForn = findCol(pHeader,'fornecedor'), cProdP = findCol(pHeader,'produto'),
             cData = findCol(pHeader,'data'), cQtdP = findCol(pHeader,'quantidade'),
-            cPrevisao = findCol(pHeader,'previs'), cObsP = findCol(pHeader,'observa'),
-            cValorUnit = findCol(pHeader,'valor unit');
+            cPrevisao = findCol(pHeader,'previs'), cObsP = findCol(pHeader,'observa');
         var sitCounts = {}, motCounts = {}, fornCounts = {}, pedidosTotal = 0, pedidosRowsFull = [], fornecedorHist = {};
-        var monthAggCompras = {}, comValorCount = 0;
         for(var k=pIdx+1;k<pedidosRows.length;k++){
           var r3 = pedidosRows[k];
           var prodVal = cProdP>=0 ? r3[cProdP] : '';
@@ -2300,18 +2299,6 @@
           var previsaoVal = cPrevisao>=0 ? String(r3[cPrevisao]||'').trim() : '';
           var obsVal = cObsP>=0 ? String(r3[cObsP]||'').trim() : '';
 
-          // Gasto em compras: Quantidade × Valor Unitário (quando ambos preenchidos). Sem quantidade, assume 1 unidade.
-          var valorUnitVal = cValorUnit>=0 ? r3[cValorUnit] : null;
-          if(valorUnitVal!==null && valorUnitVal!==undefined && String(valorUnitVal).trim()!=='' && dataSerial && !isNaN(dataSerial)){
-            var valorUnitNum = parseNum(valorUnitVal);
-            var valorLinha = valorUnitNum * (qtdNum || 1);
-            comValorCount++;
-            var dCompra = excelSerialToDate(dataSerial);
-            var mkCompra = dCompra.getUTCFullYear()+'-'+('0'+(dCompra.getUTCMonth()+1)).slice(-2);
-            if(!monthAggCompras[mkCompra]) monthAggCompras[mkCompra] = {valor:0, year:dCompra.getUTCFullYear(), month:dCompra.getUTCMonth()};
-            monthAggCompras[mkCompra].valor += valorLinha;
-          }
-
           // Último fornecedor conhecido: usa o próprio, ou o último registrado antes (mesmo produto, ordem cronológica das linhas).
           var prodKeyForn = normalize(prodVal);
           var ultimoForn = fornVal || fornecedorHist[prodKeyForn] || '';
@@ -2333,19 +2320,11 @@
             var pa = a[5]==='Pendente' ? 0 : 1, pb = b[5]==='Pendente' ? 0 : 1;
             return pa - pb;
           });
-          var monthKeysCompras = Object.keys(monthAggCompras).sort();
-          var movDataComprasNew = monthKeysCompras.map(function(mk, idx){
-            var mc = monthAggCompras[mk];
-            var label = monthAbbrev[mc.month] + '/' + String(mc.year).slice(2);
-            if(idx===monthKeysCompras.length-1) label += '*';
-            return [label, Math.round(mc.valor*100)/100];
-          });
           pedidosResult = {
             total: pedidosTotal,
             situacaoLabels: sitLabels, situacaoData: sitLabels.map(function(l){return sitCounts[l];}),
             motivoLabels: motLabels2, motivoData: motLabels2.map(function(l){return motCounts[l];}),
-            fornecedores: fornArr, rows: pedidosRowsFull,
-            movDataCompras: movDataComprasNew, pedidosComValorCount: comValorCount
+            fornecedores: fornArr, rows: pedidosRowsFull
           };
         }
       }
@@ -2479,6 +2458,9 @@
       movValorGlobalEntrada = result.entradas.valorTotal;
       movDateRangeGlobalEntrada = result.entradas.dateRange;
       selectedMonthsEntrada = [];
+      movDataCompras = result.entradas.movDataValor || [];
+      document.getElementById('comprasValorHint').textContent =
+        'soma do "Valor Total" da aba Historico_Entradas, por mês em que o material entrou no estoque';
     }
 
     if(result.snapshot){
@@ -2501,11 +2483,6 @@
       motivoDonutData = result.pedidos.motivoData;
       fornecedores = result.pedidos.fornecedores;
       comprasPendentesRows = result.pedidos.rows || comprasPendentesRows;
-      movDataCompras = result.pedidos.movDataCompras || [];
-      pedidosComValorCount = result.pedidos.pedidosComValorCount || 0;
-      pedidosTotalParaValor = pedidosTotalGlobal;
-      document.getElementById('comprasValorHint').textContent =
-        pedidosComValorCount.toLocaleString('pt-BR')+' de '+pedidosTotalGlobal.toLocaleString('pt-BR')+' pedidos com Valor Unitário preenchido · soma Quantidade × Valor Unitário, por mês do pedido';
     }
 
     if(result.curadoria){
