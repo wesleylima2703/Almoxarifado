@@ -617,20 +617,38 @@
         <h2>Giro de estoque</h2>
         <span class="hint">itens com saldo e valor parados, sem entrada nem saída recente</span>
       </div>
-      <div class="card">
-        <h3>Itens parados há mais tempo</h3>
-        <div class="card-sub">maior tempo parado primeiro — prioriza o que realmente virou capital parado</div>
-        <div class="toolbar">
-          <div class="search-box">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
-            <input type="text" id="searchGiro" placeholder="Buscar item...">
+      <div class="grid cols-2">
+        <div class="card">
+          <h3>Itens parados há mais tempo</h3>
+          <div class="card-sub">maior tempo parado primeiro — prioriza o que realmente virou capital parado</div>
+          <div class="toolbar">
+            <div class="search-box">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+              <input type="text" id="searchGiro" placeholder="Buscar item...">
+            </div>
+          </div>
+          <div class="table-scroll">
+            <table>
+              <thead><tr><th>Produto</th><th>Grupo</th><th>Local</th><th class="num">Saldo</th><th class="num">Valor parado</th><th class="num">Dias parado</th></tr></thead>
+              <tbody id="tblGiro"></tbody>
+            </table>
           </div>
         </div>
-        <div class="table-scroll">
-          <table>
-            <thead><tr><th>Produto</th><th>Grupo</th><th>Local</th><th class="num">Saldo</th><th class="num">Valor parado</th><th class="num">Dias parado</th></tr></thead>
-            <tbody id="tblGiro"></tbody>
-          </table>
+        <div class="card">
+          <h3>Próximos candidatos à curadoria</h3>
+          <div class="card-sub" id="candidatosGiroHint">itens com giro ativo (saída recente) que ainda não têm mínimo/máximo definido</div>
+          <div class="toolbar">
+            <div class="search-box">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+              <input type="text" id="searchCandidatosGiro" placeholder="Buscar item...">
+            </div>
+          </div>
+          <div class="table-scroll">
+            <table>
+              <thead><tr><th>Produto</th><th>Grupo</th><th>Local</th><th class="num">Saldo</th><th class="num">Valor</th><th class="num">Últ. saída</th></tr></thead>
+              <tbody id="tblCandidatosGiro"></tbody>
+            </table>
+          </div>
         </div>
       </div>
     </section>
@@ -1026,6 +1044,20 @@
     ["Emblema grade 313 CDI (Sprinter) marca Mercedes Benz","Manut. transporte","Almox. 1 — Manut. transporte",1,111.69,1013]
   ];
 
+  // ---- Próximos candidatos à curadoria: giro ativo (saída recente) sem mínimo/máximo definido ----
+  var giroAtivoDias = 180;
+  var giroAtivoTotal = 672;
+  var candidatosGiro = [
+    ["Stretch manual 500mm x 25 micra x 3","Logística","3 locais",12660.52,258050.53,7],
+    ["BOPP branco fosco Fasson S 2045 90mts Zebra","Logística","2 locais",429,37615.05,20],
+    ["Pacote de folha A4 Chamex","Almoxarifado","4 locais",1739,32820.03,12],
+    ["Papel toalha bobina 6x20x200","Material de limpeza","2 locais",1048,30076.44,19],
+    ["Aditivo de radiador","Manut. transporte","2 locais",1638,25845.50,91],
+    ["Óleo M-Delvac Modern 15W40 SD V3 marca M-Delvac","Manut. transporte","2 locais",1200,22920.00,114],
+    ["Copo descartável 200ml Copomais","Material de limpeza","3 locais",4111,19329.28,3],
+    ["Sacola verde reforçada 50x60 5 kg","Almoxarifado","5 locais",317,18655.64,39]
+  ];
+
   function fmtBRL(v){
     return v.toLocaleString('pt-BR', {style:'currency', currency:'BRL', maximumFractionDigits:0});
   }
@@ -1114,6 +1146,23 @@
     });
   }
 
+  var tblCandidatosGiro = document.getElementById('tblCandidatosGiro');
+  function buildCandidatosGiroTable(){
+    tblCandidatosGiro.innerHTML = '';
+    if(!candidatosGiro.length){
+      tblCandidatosGiro.innerHTML = '<tr><td colspan="6" class="prod-loc">Nenhum candidato — todos os itens com giro ativo já têm mínimo/máximo definido.</td></tr>';
+    } else {
+      candidatosGiro.forEach(function(r){
+        tblCandidatosGiro.insertAdjacentHTML('beforeend',
+          '<tr><td class="prod-name">'+r[0]+'</td><td class="prod-loc">'+r[1]+'</td><td class="prod-loc">'+r[2]+'</td>'+
+          '<td class="num">'+fmtNum(r[3])+'</td><td class="num">'+fmtBRL(r[4])+'</td>'+
+          '<td class="num">'+r[5]+' dias</td></tr>');
+      });
+    }
+    document.getElementById('candidatosGiroHint').textContent =
+      candidatosGiro.length.toLocaleString('pt-BR')+' de '+giroAtivoTotal.toLocaleString('pt-BR')+' itens com saída nos últimos '+giroAtivoDias+' dias ainda sem mínimo/máximo · maior valor parado primeiro';
+  }
+
   function populateComprasSituacaoOptions(){
     var sel = document.getElementById('filterComprasSituacao');
     var current = sel.value;
@@ -1153,6 +1202,7 @@
   buildComprasPendentesTable();
   populateComprasSituacaoOptions();
   buildGiroTable();
+  buildCandidatosGiroTable();
   updateMovResumo();
 
   /* ---------- Busca / filtros nas tabelas ---------- */
@@ -1177,6 +1227,7 @@
   attachSearch(document.getElementById('searchEntradas'), tblTopEntradas);
   attachSearch(document.getElementById('searchFornecedor'), tblFornecedor);
   attachSearch(document.getElementById('searchGiro'), tblGiro);
+  attachSearch(document.getElementById('searchCandidatosGiro'), tblCandidatosGiro);
 
   var comprasSituacaoFilter = '';
   var comprasCountHint = document.getElementById('comprasCountHint');
@@ -1677,8 +1728,9 @@
     document.getElementById('movHint').textContent = movTotalGlobal.toLocaleString('pt-BR')+' saídas registradas · '+movDateRangeGlobal+' · aba Histórico de Saídas';
 
     var curadoriaPct = totalCadastrosGlobal ? (curadoriaTotalGlobal/totalCadastrosGlobal*100) : 0;
+    var curadoriaPctAtivo = giroAtivoTotal ? (curadoriaTotalGlobal/giroAtivoTotal*100) : 0;
     document.getElementById('curadoriaCallout').querySelector('span:last-child').innerHTML =
-      'Curadoria manual cobre <b>'+curadoriaTotalGlobal.toLocaleString('pt-BR')+'</b> dos <b>'+totalCadastrosGlobal.toLocaleString('pt-BR')+'</b> cadastros ('+fmtPct(curadoriaPct)+') até agora — é um processo em andamento, item por item. O restante da base ainda não tem mínimo/máximo definidos.';
+      'Curadoria manual cobre <b>'+curadoriaTotalGlobal.toLocaleString('pt-BR')+'</b> dos <b>'+totalCadastrosGlobal.toLocaleString('pt-BR')+'</b> cadastros ('+fmtPct(curadoriaPct)+') — mas o que importa é frente aos <b>'+giroAtivoTotal.toLocaleString('pt-BR')+'</b> itens com giro ativo (saída nos últimos '+giroAtivoDias+' dias): <b>'+fmtPct(curadoriaPctAtivo)+'</b> cobertos até agora. É nesse grupo que priorizar rende mais — veja "Próximos candidatos à curadoria" em Giro de estoque.';
     document.getElementById('curadoriaSub').textContent = curadoriaTotalGlobal.toLocaleString('pt-BR')+' itens conferidos manualmente';
 
     document.getElementById('pedidosHint').textContent = pedidosTotalGlobal.toLocaleString('pt-BR')+' pedidos registrados · aba Histórico de Pedidos';
@@ -2005,6 +2057,7 @@
 
     var curadoriaResult = null;
     var controleRows = getSheetRows('Controle_Estoque');
+    var curatedSet = {};
     if(controleRows){
       var cIdx = findHeaderRowIndex(controleRows, ['produto','status']);
       if(cIdx<0){ warnings.push('Não encontrei o cabeçalho da aba "Controle_Estoque".'); }
@@ -2019,6 +2072,7 @@
           var prodC = r4[ccProd];
           if(!prodC || String(prodC).trim()==='') continue;
           total++;
+          curatedSet[normalize(prodC)] = true;
           var statusVal = ccStatus>=0 ? normalize(r4[ccStatus]) : '';
           if(statusVal.indexOf('comprar')>=0){
             comprar++;
@@ -2029,6 +2083,26 @@
         if(total>0) curadoriaResult = { total:total, comprar:comprar, acimaMax:acimaMax, semDef:semDef, comprarRows:comprarRows };
       }
     } else { warnings.push('Não encontrei a aba "Controle_Estoque".'); }
+
+    // Próximos candidatos à curadoria: itens com saída nos últimos 180 dias (giro ativo)
+    // que ainda não têm mínimo/máximo definido no Controle_Estoque. Recalculado a cada atualização.
+    var GIRO_ATIVO_DIAS = 180;
+    var candidatosGiroNew = Object.keys(stalenessAgg).map(function(k){
+      var sa = stalenessAgg[k];
+      if(sa.dataSaida<=0) return null;
+      var dias = Math.round(todaySerial - sa.dataSaida);
+      if(dias>GIRO_ATIVO_DIAS || dias<0) return null;
+      if(curatedSet[normalize(k)]) return null;
+      var almoxList = Object.keys(sa.almoxSet);
+      return [k, sa.grupo, almoxList.length>1 ? (almoxList.length+' locais') : (almoxList[0]||'—'),
+        Math.round(sa.saldo*100)/100, Math.round(sa.valor*100)/100, dias];
+    }).filter(Boolean).sort(function(a,b){ return b[4]-a[4]; });
+    baseData.candidatosGiro = candidatosGiroNew;
+    baseData.giroAtivoDias = GIRO_ATIVO_DIAS;
+    baseData.giroAtivoTotal = Object.keys(stalenessAgg).filter(function(k){
+      var sa = stalenessAgg[k];
+      return sa.dataSaida>0 && (todaySerial - sa.dataSaida) <= GIRO_ATIVO_DIAS && (todaySerial - sa.dataSaida) >= 0;
+    }).length;
 
     return { base: baseData, saidas: saidasResult, entradas: entradasResult, pedidos: pedidosResult, curadoria: curadoriaResult, warnings: warnings };
   }
@@ -2052,6 +2126,9 @@
     negativeItems = b.negativeItems;
     saldoDonutData = [comSaldoGlobal, zeradoGlobal, negativoGlobal];
     giroRows = b.giroRows || [];
+    candidatosGiro = b.candidatosGiro || [];
+    giroAtivoDias = b.giroAtivoDias || giroAtivoDias;
+    giroAtivoTotal = b.giroAtivoTotal || 0;
 
     if(result.saidas){
       movData = result.saidas.movData;
@@ -2097,6 +2174,7 @@
     populateComprasSituacaoOptions();
     refreshComprasCount();
     buildGiroTable();
+    buildCandidatosGiroTable();
     populateSetorSelect();
     if(grupoSorted.length) renderSetor(grupoSorted[0][0]);
     updateStaticTexts();
