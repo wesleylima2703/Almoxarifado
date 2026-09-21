@@ -542,7 +542,7 @@
       <div class="grid cols-2" style="margin-top:14px;">
         <div class="card">
           <h3>Entradas registradas por mês</h3>
-          <div class="card-sub" id="entradaHint">nº de lançamentos de entrada · movimentacoes_entrada.xlsx</div>
+          <div class="card-sub" id="entradaHint">nº de lançamentos de entrada · aba Historico_Entradas</div>
           <div class="chart-wrap" style="height:260px;">
             <canvas id="chartEntrada"></canvas>
           </div>
@@ -748,7 +748,7 @@
     </section>
 
     <footer>
-      Painel sincronizado automaticamente do GitHub (wesleylima2703/Almoxarifado) — "Principal.xlsx" (abas Base_Gestran, Análises Gerais, Controle de Estoque, Histórico de Pedidos e Histórico de Saídas) e "movimentacoes_entrada.xlsx" (entradas de estoque).
+      Painel sincronizado automaticamente do GitHub (wesleylima2703/Almoxarifado) — tudo a partir de "Principal.xlsx" (abas Base_Gestran, Análises Gerais, Controle de Estoque, Histórico de Pedidos, Histórico de Saídas e Histórico de Entradas).
     </footer>
   </main>
 </div>
@@ -962,7 +962,7 @@
     ["Frigoking", 1], ["Jaé Ilha Descartáveis", 1], ["Autopeças Rio Bonito", 1]
   ];
 
-  // ---- Movimentação de entrada (movimentacoes_entrada.xlsx) ----
+  // ---- Movimentação de entrada (aba Historico_Entradas dentro de Principal.xlsx) ----
   var movTotalGlobalEntrada = 171;
   var movValorGlobalEntrada = 25356.79;
   var movDateRangeGlobalEntrada = '27/01/2026 a 10/09/2026';
@@ -1086,11 +1086,13 @@
     comprasPendentesRows.forEach(function(r){
       var sitLabel = r[5] || '—';
       var sitClass = situacaoTagClass[normalize(sitLabel)] || 'neutral';
+      var ultimoForn = r[8], fornSugerido = r[9];
+      var fornCell = ultimoForn ? (ultimoForn + (fornSugerido ? ' <span class="prod-loc">(último usado)</span>' : '')) : '—';
       tblComprasPendentes.insertAdjacentHTML('beforeend',
         '<tr><td class="prod-name">'+r[1]+'<div class="prod-loc">Pedido em '+(r[0]||'—')+'</div></td>'+
         '<td class="num">'+(r[2]!==null && r[2]!==undefined ? fmtNum(r[2]) : '—')+'</td>'+
         '<td>'+(r[3]||'—')+'</td>'+
-        '<td>'+(r[4]||'—')+'</td>'+
+        '<td>'+fornCell+'</td>'+
         '<td><span class="tag '+sitClass+'">'+sitLabel+'</span></td>'+
         '<td>'+(r[6]||'—')+'</td>'+
         '<td class="prod-loc">'+(r[7]||'')+'</td></tr>');
@@ -1206,7 +1208,7 @@
     deltaEl.textContent = (delta>0?'+':'') + delta.toLocaleString('pt-BR') + ' lanç.';
     deltaEl.style.color = delta > 0 ? 'var(--good)' : (delta < 0 ? 'var(--crit)' : '');
     document.getElementById('resumoValorEntrada').textContent = fmtBRL(movValorGlobalEntrada);
-    document.getElementById('entradaHint').textContent = movTotalGlobalEntrada.toLocaleString('pt-BR')+' entradas registradas · '+movDateRangeGlobalEntrada+' · movimentacoes_entrada.xlsx';
+    document.getElementById('entradaHint').textContent = movTotalGlobalEntrada.toLocaleString('pt-BR')+' entradas registradas · '+movDateRangeGlobalEntrada+' · aba Historico_Entradas';
   }
 
   var top20AlmoxFilter = '';
@@ -1881,6 +1883,59 @@
     } else { warnings.push('Não encontrei a aba "Historico_Saidas".'); }
     baseData.giroRows = giroRowsNew;
 
+    var entradasResult = null;
+    var entradasRows = getSheetRows('Historico_Entradas');
+    if(entradasRows){
+      var heIdx = findHeaderRowIndex(entradasRows, ['produto','quantidade']);
+      if(heIdx<0){ warnings.push('Não encontrei o cabeçalho (Produto/Quantidade) na aba "Historico_Entradas".'); }
+      else {
+        var eHeader = entradasRows[heIdx];
+        var ceProd = findCol(eHeader,'produto')>=0 ? findCol(eHeader,'produto') : findCol(eHeader,'item');
+        var ceQtd = findCol(eHeader,'quantidade'), ceData = findCol(eHeader,'data'), ceValor = findCol(eHeader,'valor total');
+        if(ceProd<0 || ceQtd<0 || ceData<0){ warnings.push('A aba "Historico_Entradas" não tem as colunas esperadas (Produto, Quantidade, Data).'); }
+        else {
+          var monthAggE = {}, itemsAllE = {}, totalEntradas = 0, valorTotalEntradas = 0;
+          for(var e=heIdx+1;e<entradasRows.length;e++){
+            var r5 = entradasRows[e];
+            var itemValE = r5[ceProd];
+            if(!itemValE || normalize(itemValE).indexOf('exemplo')===0) continue;
+            var dateValE = r5[ceData];
+            var serialE = typeof dateValE==='number' ? dateValE : parseFloat(dateValE);
+            if(!serialE || isNaN(serialE)) continue;
+            var qtyE = parseNum(r5[ceQtd]);
+            var valorE = ceValor>=0 ? parseNum(r5[ceValor]) : 0;
+            var dE = excelSerialToDate(serialE);
+            var monthKeyE = dE.getUTCFullYear()+'-'+('0'+(dE.getUTCMonth()+1)).slice(-2);
+            if(!monthAggE[monthKeyE]) monthAggE[monthKeyE] = {n:0, qty:0, valor:0, year:dE.getUTCFullYear(), month:dE.getUTCMonth()};
+            monthAggE[monthKeyE].n++; monthAggE[monthKeyE].qty += qtyE; monthAggE[monthKeyE].valor += valorE;
+            var itemNameE = String(itemValE).trim();
+            if(!itemsAllE[itemNameE]) itemsAllE[itemNameE] = {qty:0, n:0, valor:0};
+            itemsAllE[itemNameE].qty += qtyE; itemsAllE[itemNameE].n++; itemsAllE[itemNameE].valor += valorE;
+            totalEntradas++; valorTotalEntradas += valorE;
+          }
+          var monthKeysE = Object.keys(monthAggE).sort();
+          if(monthKeysE.length){
+            var movDataEntradaNew = monthKeysE.map(function(mk, idx){
+              var ma = monthAggE[mk];
+              var label = monthAbbrev[ma.month] + '/' + String(ma.year).slice(2);
+              if(idx===monthKeysE.length-1) label += '*';
+              return [label, ma.n];
+            });
+            var topEntradasNew = Object.keys(itemsAllE).map(function(k){
+              return [k, Math.round(itemsAllE[k].qty*100)/100, itemsAllE[k].n, Math.round(itemsAllE[k].valor*100)/100];
+            }).sort(function(a,b){return b[1]-a[1];}).slice(0,8);
+            var firstLabelE = movDataEntradaNew[0][0].replace('*','');
+            var lastLabelE = movDataEntradaNew[movDataEntradaNew.length-1][0].replace('*','');
+            entradasResult = {
+              total: totalEntradas, valorTotal: Math.round(valorTotalEntradas*100)/100,
+              movData: movDataEntradaNew, topEntradas: topEntradasNew,
+              dateRange: firstLabelE + ' a ' + lastLabelE
+            };
+          }
+        }
+      }
+    } else { warnings.push('Não encontrei a aba "Historico_Entradas" (ainda não foi adicionada ao Principal.xlsx?).'); }
+
     var pedidosResult = null;
     var pedidosRows = getSheetRows('Historico_Pedidos');
     if(pedidosRows){
@@ -1892,7 +1947,7 @@
             cForn = findCol(pHeader,'fornecedor'), cProdP = findCol(pHeader,'produto'),
             cData = findCol(pHeader,'data'), cQtdP = findCol(pHeader,'quantidade'),
             cPrevisao = findCol(pHeader,'previs'), cObsP = findCol(pHeader,'observa');
-        var sitCounts = {}, motCounts = {}, fornCounts = {}, pedidosTotal = 0, pedidosRowsFull = [];
+        var sitCounts = {}, motCounts = {}, fornCounts = {}, pedidosTotal = 0, pedidosRowsFull = [], fornecedorHist = {};
         for(var k=pIdx+1;k<pedidosRows.length;k++){
           var r3 = pedidosRows[k];
           var prodVal = cProdP>=0 ? r3[cProdP] : '';
@@ -1916,7 +1971,14 @@
           var qtdNum = (qtdVal===null || qtdVal===undefined || String(qtdVal).trim()==='') ? null : parseNum(qtdVal);
           var previsaoVal = cPrevisao>=0 ? String(r3[cPrevisao]||'').trim() : '';
           var obsVal = cObsP>=0 ? String(r3[cObsP]||'').trim() : '';
-          pedidosRowsFull.push([dataLabel, String(prodVal).trim(), qtdNum, motLabel || (String(motVal||'').trim()), fornVal, sitLabel, previsaoVal, obsVal]);
+
+          // Último fornecedor conhecido: usa o próprio, ou o último registrado antes (mesmo produto, ordem cronológica das linhas).
+          var prodKeyForn = normalize(prodVal);
+          var ultimoForn = fornVal || fornecedorHist[prodKeyForn] || '';
+          var fornSugerido = !fornVal && !!ultimoForn;
+          if(fornVal) fornecedorHist[prodKeyForn] = fornVal;
+
+          pedidosRowsFull.push([dataLabel, String(prodVal).trim(), qtdNum, motLabel || (String(motVal||'').trim()), fornVal, sitLabel, previsaoVal, obsVal, ultimoForn, fornSugerido]);
         }
         if(pedidosTotal>0){
           var order = ['Pendente','Recebido'];
@@ -1968,60 +2030,7 @@
       }
     } else { warnings.push('Não encontrei a aba "Controle_Estoque".'); }
 
-    return { base: baseData, saidas: saidasResult, pedidos: pedidosResult, curadoria: curadoriaResult, warnings: warnings };
-  }
-
-  /* ---------- Movimentação de entrada (movimentacoes_entrada.xlsx) ---------- */
-  function processEntradaWorkbook(wb){
-    var sheetName = wb.SheetNames.indexOf('Movimentacoes_Unificado')>=0 ? 'Movimentacoes_Unificado' : wb.SheetNames[0];
-    var rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], {header:1, raw:true, defval:''});
-    var hIdx = findHeaderRowIndex(rows, ['produto','quantidade']);
-    if(hIdx<0) throw new Error('Não encontrei o cabeçalho (Produto/Quantidade) na planilha de entradas.');
-    var header = rows[hIdx];
-    var cProd = findCol(header,'produto'), cQtd = findCol(header,'quantidade'),
-        cData = findCol(header,'data'), cValor = findCol(header,'valor total');
-    if(cProd<0 || cQtd<0 || cData<0) throw new Error('A planilha de entradas não tem as colunas esperadas (Produto, Quantidade, Data/Hora).');
-    var monthAbbrev = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
-    var monthAgg = {}, itemsAll = {}, total = 0, valorTotal = 0;
-    for(var i=hIdx+1;i<rows.length;i++){
-      var r = rows[i];
-      var itemVal = r[cProd];
-      if(!itemVal) continue;
-      var dateVal = r[cData];
-      var serial = typeof dateVal==='number' ? dateVal : parseFloat(dateVal);
-      if(!serial || isNaN(serial)) continue;
-      var qty = parseNum(r[cQtd]);
-      var valor = cValor>=0 ? parseNum(r[cValor]) : 0;
-      var d = excelSerialToDate(serial);
-      var monthKey = d.getUTCFullYear()+'-'+('0'+(d.getUTCMonth()+1)).slice(-2);
-      if(!monthAgg[monthKey]) monthAgg[monthKey] = {n:0, qty:0, valor:0, year:d.getUTCFullYear(), month:d.getUTCMonth()};
-      monthAgg[monthKey].n++; monthAgg[monthKey].qty += qty; monthAgg[monthKey].valor += valor;
-      var itemName = String(itemVal).trim();
-      if(!itemsAll[itemName]) itemsAll[itemName] = {qty:0, n:0, valor:0};
-      itemsAll[itemName].qty += qty; itemsAll[itemName].n++; itemsAll[itemName].valor += valor;
-      total++; valorTotal += valor;
-    }
-    if(total===0) throw new Error('Não encontrei nenhuma entrada com data válida na planilha.');
-    var monthKeys = Object.keys(monthAgg).sort();
-    var movDataEntradaNew = monthKeys.map(function(mk, idx){
-      var ma = monthAgg[mk];
-      var label = monthAbbrev[ma.month] + '/' + String(ma.year).slice(2);
-      if(idx===monthKeys.length-1) label += '*';
-      return [label, ma.n];
-    });
-    var topEntradasNew = Object.keys(itemsAll).map(function(k){
-      return [k, Math.round(itemsAll[k].qty*100)/100, itemsAll[k].n, Math.round(itemsAll[k].valor*100)/100];
-    }).sort(function(a,b){return b[1]-a[1];}).slice(0,8);
-    var dates = [];
-    for(var mk2 in monthAgg){ dates.push(mk2); }
-    dates.sort();
-    var firstLabel = movDataEntradaNew[0][0].replace('*','');
-    var lastLabel = movDataEntradaNew[movDataEntradaNew.length-1][0].replace('*','');
-    return {
-      total: total, valorTotal: Math.round(valorTotal*100)/100,
-      movData: movDataEntradaNew, topEntradas: topEntradasNew,
-      dateRange: firstLabel + ' a ' + lastLabel
-    };
+    return { base: baseData, saidas: saidasResult, entradas: entradasResult, pedidos: pedidosResult, curadoria: curadoriaResult, warnings: warnings };
   }
 
   function applyWorkbookData(result){
@@ -2052,6 +2061,14 @@
       var mk = Object.keys(monthDetail);
       if(mk.length) movDateRangeGlobal = mk[0].replace('*','') + ' a ' + mk[mk.length-1].replace('*','');
       selectedMonths = [];
+    }
+
+    if(result.entradas){
+      movDataEntrada = result.entradas.movData;
+      topEntradas = result.entradas.topEntradas;
+      movTotalGlobalEntrada = result.entradas.total;
+      movValorGlobalEntrada = result.entradas.valorTotal;
+      movDateRangeGlobalEntrada = result.entradas.dateRange;
     }
 
     if(result.pedidos){
@@ -2088,17 +2105,6 @@
     setTimeout(renderCharts, 0);
   }
 
-  function applyEntradaData(resultEntrada){
-    movTotalGlobalEntrada = resultEntrada.total;
-    movValorGlobalEntrada = resultEntrada.valorTotal;
-    movDateRangeGlobalEntrada = resultEntrada.dateRange;
-    movDataEntrada = resultEntrada.movData;
-    topEntradas = resultEntrada.topEntradas;
-    buildTopEntradasTable();
-    updateMovResumo();
-    setTimeout(renderCharts, 0);
-  }
-
   var fileInput = document.getElementById('fileInput');
   var refreshBtn = document.getElementById('refreshBtn');
   var refreshBtnLabel = document.getElementById('refreshBtnLabel');
@@ -2106,17 +2112,14 @@
   var dataSourceMeta = document.getElementById('dataSourceMeta');
 
   /* ---------- Fonte automática: GitHub (repo público) ---------- */
-  // Arquivos do repositório — troque owner/repo/branch se o repositório mudar de lugar.
+  // Um único arquivo — Principal.xlsx — traz tudo (Base_Gestran, Historico_Saidas,
+  // Historico_Entradas, Historico_Pedidos, Controle_Estoque). Troque owner/repo/branch
+  // se o repositório mudar de lugar.
   var GITHUB_OWNER = 'wesleylima2703';
   var GITHUB_REPO = 'Almoxarifado';
   var GITHUB_BRANCH = 'main';
   var GITHUB_FILE = 'Principal.xlsx';
-  var GITHUB_ENTRADA_FILE = 'movimentacoes_entrada.xlsx';
-  function githubRawUrl(file){
-    return 'https://raw.githubusercontent.com/' + GITHUB_OWNER + '/' + GITHUB_REPO + '/' + GITHUB_BRANCH + '/' + file;
-  }
-  var GITHUB_RAW_URL = githubRawUrl(GITHUB_FILE);
-  var GITHUB_ENTRADA_RAW_URL = githubRawUrl(GITHUB_ENTRADA_FILE);
+  var GITHUB_RAW_URL = 'https://raw.githubusercontent.com/' + GITHUB_OWNER + '/' + GITHUB_REPO + '/' + GITHUB_BRANCH + '/' + GITHUB_FILE;
 
   function setBusy(label){
     refreshBtn.classList.add('loading');
@@ -2149,35 +2152,23 @@
     return result;
   }
 
-  // Busca um arquivo direto do GitHub (raw.githubusercontent.com libera CORS em repositórios públicos).
-  function fetchFileFromGithub(url){
-    return fetch(url + '?t=' + Date.now(), {cache:'no-store'}).then(function(resp){
+  // Busca a planilha direto do GitHub (raw.githubusercontent.com libera CORS em repositórios públicos).
+  function fetchFromGithub(){
+    return fetch(GITHUB_RAW_URL + '?t=' + Date.now(), {cache:'no-store'}).then(function(resp){
       if(!resp.ok) throw new Error('GitHub respondeu ' + resp.status + '.');
       return resp.arrayBuffer();
     });
   }
-  function fetchFromGithub(){ return fetchFileFromGithub(GITHUB_RAW_URL); }
 
   function refreshFromGithub(isAutoLoad){
     setBusy('Buscando no GitHub...');
-    var entradaOk = null, entradaErr = null;
-    var entradaPromise = fetchFileFromGithub(GITHUB_ENTRADA_RAW_URL).then(function(buf){
-      var wbE = XLSX.read(new Uint8Array(buf), {type:'array'});
-      applyEntradaData(processEntradaWorkbook(wbE));
-      entradaOk = true;
-    }).catch(function(err){ entradaOk = false; entradaErr = err.message; });
-
-    return fetchFileFromGithub(GITHUB_RAW_URL).then(function(buf){
-      var result = applyArrayBuffer(buf, '"' + GITHUB_FILE + '" + "' + GITHUB_ENTRADA_FILE + '" (GitHub · ' + GITHUB_OWNER + '/' + GITHUB_REPO + ')');
-      return entradaPromise.then(function(){
-        var msg = '✓ Dashboard atualizado a partir do GitHub — ' + GITHUB_FILE + (entradaOk ? ' + ' + GITHUB_ENTRADA_FILE : '') + '.';
-        var warns = result.warnings.slice();
-        if(entradaOk===false) warns.push('Entradas não atualizadas (' + GITHUB_ENTRADA_FILE + '): ' + entradaErr + '.');
-        if(warns.length) msg += ' Avisos: ' + warns.join(' ');
-        showBanner(!warns.length, msg);
-        clearBusy();
-        return true;
-      });
+    return fetchFromGithub().then(function(buf){
+      var result = applyArrayBuffer(buf, '"' + GITHUB_FILE + '" (GitHub · ' + GITHUB_OWNER + '/' + GITHUB_REPO + ')');
+      var msg = '✓ Dashboard atualizado a partir do GitHub — ' + GITHUB_FILE + '.';
+      if(result.warnings.length) msg += ' Avisos: ' + result.warnings.join(' ');
+      showBanner(!result.warnings.length, msg);
+      clearBusy();
+      return true;
     }).catch(function(err){
       clearBusy();
       if(!isAutoLoad){
@@ -2200,7 +2191,7 @@
     reader.onload = function(e){
       try{
         var result = applyArrayBuffer(e.target.result, '"' + file.name + '"');
-        var msg = '✓ Dashboard atualizado a partir de "' + file.name + '". A movimentação de entrada continua com o último dado do GitHub.';
+        var msg = '✓ Dashboard atualizado a partir de "' + file.name + '".';
         if(result.warnings.length) msg += ' Avisos: ' + result.warnings.join(' ');
         showBanner(!result.warnings.length, msg);
       } catch(err){
