@@ -348,7 +348,7 @@
       <a href="#compras-pendentes"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 6h15l-1.5 9h-12z"/><path d="M6 6L5 2H2"/><circle cx="9" cy="20" r="1.4"/><circle cx="17" cy="20" r="1.4"/></svg></span>O que comprar</a>
       <span class="section-label">Ação</span>
       <a href="#criticos"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l9 17H3z"/><path d="M12 10v4M12 17.5v.01"/></svg></span>Itens críticos</a>
-      <a href="#risco"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg></span>Cobertura &amp; giro</a>
+      <a href="#risco"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg></span>Giro de estoque</a>
       <a href="#pedidos"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 3h9l3 3v15H6z"/><path d="M9 9h6M9 13h6M9 17h4"/></svg></span>Pedidos de compra</a>
       <a href="#saude"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></span>Ranking de valor</a>
     </nav>
@@ -614,41 +614,23 @@
 
     <section id="risco">
       <div class="section-head">
-        <h2>Cobertura &amp; giro de estoque</h2>
-        <span class="hint">consumo médio calculado a partir do Histórico de Saídas · <span id="coberturaSemanas">40,9</span> semanas de referência</span>
+        <h2>Giro de estoque</h2>
+        <span class="hint">itens com saldo e valor parados, sem entrada nem saída recente</span>
       </div>
-      <div class="grid cols-2">
-        <div class="card">
-          <h3>Cobertura em dias por item</h3>
-          <div class="card-sub">saldo ÷ consumo médio diário · menor cobertura primeiro (risco de ruptura)</div>
-          <div class="toolbar">
-            <div class="search-box">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
-              <input type="text" id="searchCobertura" placeholder="Buscar item...">
-            </div>
-          </div>
-          <div class="table-scroll">
-            <table>
-              <thead><tr><th>Produto</th><th>Grupo</th><th class="num">Saldo</th><th class="num">Consumo/dia</th><th class="num">Cobertura</th></tr></thead>
-              <tbody id="tblCobertura"></tbody>
-            </table>
+      <div class="card">
+        <h3>Itens parados há mais tempo</h3>
+        <div class="card-sub">maior tempo parado primeiro — prioriza o que realmente virou capital parado</div>
+        <div class="toolbar">
+          <div class="search-box">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+            <input type="text" id="searchGiro" placeholder="Buscar item...">
           </div>
         </div>
-        <div class="card">
-          <h3>Itens parados há mais tempo</h3>
-          <div class="card-sub">saldo e valor parados, sem entrada nem saída recente · maior tempo parado primeiro</div>
-          <div class="toolbar">
-            <div class="search-box">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
-              <input type="text" id="searchGiro" placeholder="Buscar item...">
-            </div>
-          </div>
-          <div class="table-scroll">
-            <table>
-              <thead><tr><th>Produto</th><th>Grupo</th><th>Local</th><th class="num">Saldo</th><th class="num">Valor parado</th><th class="num">Dias parado</th></tr></thead>
-              <tbody id="tblGiro"></tbody>
-            </table>
-          </div>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>Produto</th><th>Grupo</th><th>Local</th><th class="num">Saldo</th><th class="num">Valor parado</th><th class="num">Dias parado</th></tr></thead>
+            <tbody id="tblGiro"></tbody>
+          </table>
         </div>
       </div>
     </section>
@@ -1044,19 +1026,6 @@
     ["Emblema grade 313 CDI (Sprinter) marca Mercedes Benz","Manut. transporte","Almox. 1 — Manut. transporte",1,111.69,1013]
   ];
 
-  // ---- Cobertura em dias: saldo ÷ consumo médio diário (itens com maior risco de ruptura) ----
-  var semanasCobertasGlobal = 40.9;
-  var coberturaRows = [
-    ["Gasolina comum 01","Almoxarifado",21.31,5.507,4],
-    ["Roda Colson pneumática 350-4 R.7","Manut. transporte",6,0.583,10],
-    ["Difusor de aromas 100ml lavanda","Material de limpeza",1,0.101,10],
-    ["Lanterna lateral baú c/suporte amarela/laranja","Manut. transporte",1,0.052,19],
-    ["Antisséptico bucal refil 1 litro","Material de limpeza",1,0.052,19],
-    ["Fita veda rosca 18x25m Tigre","Manutenção predial",3,0.129,23],
-    ["Terra adubada 20 kg Estrela do Jardim","Jardinagem",1,0.042,24],
-    ["Aditivo radiador 200ml Aditech HT-E 35R","Manut. transporte",1,0.035,29]
-  ];
-
   function fmtBRL(v){
     return v.toLocaleString('pt-BR', {style:'currency', currency:'BRL', maximumFractionDigits:0});
   }
@@ -1143,24 +1112,6 @@
     });
   }
 
-  var tblCobertura = document.getElementById('tblCobertura');
-  function buildCoberturaTable(){
-    tblCobertura.innerHTML = '';
-    if(!coberturaRows.length){
-      tblCobertura.innerHTML = '<tr><td colspan="5" class="prod-loc">Sem dados suficientes de saída para calcular cobertura.</td></tr>';
-      return;
-    }
-    coberturaRows.forEach(function(r){
-      var dias = r[4];
-      var tagClass = dias<=7 ? 'crit' : (dias<=14 ? 'warn' : 'neutral');
-      tblCobertura.insertAdjacentHTML('beforeend',
-        '<tr><td class="prod-name">'+r[0]+'</td><td class="prod-loc">'+r[1]+'</td>'+
-        '<td class="num">'+fmtNum(r[2])+'</td><td class="num">'+r[3].toLocaleString('pt-BR',{maximumFractionDigits:3})+'/dia</td>'+
-        '<td class="num"><span class="tag '+tagClass+'">'+dias+' dias</span></td></tr>');
-    });
-    document.getElementById('coberturaSemanas').textContent = semanasCobertasGlobal.toLocaleString('pt-BR');
-  }
-
   function populateComprasSituacaoOptions(){
     var sel = document.getElementById('filterComprasSituacao');
     var current = sel.value;
@@ -1200,7 +1151,6 @@
   buildComprasPendentesTable();
   populateComprasSituacaoOptions();
   buildGiroTable();
-  buildCoberturaTable();
   updateMovResumo();
 
   /* ---------- Busca / filtros nas tabelas ---------- */
@@ -1225,7 +1175,6 @@
   attachSearch(document.getElementById('searchEntradas'), tblTopEntradas);
   attachSearch(document.getElementById('searchFornecedor'), tblFornecedor);
   attachSearch(document.getElementById('searchGiro'), tblGiro);
-  attachSearch(document.getElementById('searchCobertura'), tblCobertura);
 
   var comprasSituacaoFilter = '';
   var comprasCountHint = document.getElementById('comprasCountHint');
@@ -1927,23 +1876,6 @@
             .sort(function(a,b){return b[1]-a[1];}).slice(0,8);
           var totalSaidas = monthKeys.reduce(function(s,mk){return s+monthAgg[mk].n;},0);
           saidasResult = { movData: movDataNew, monthDetail: monthDetailNew, topSaidas: topSaidasNew, total: totalSaidas };
-
-          // Cobertura em dias: saldo atual ÷ consumo médio diário (baseado no período coberto pelo histórico de saídas).
-          var semanasCobertas = parseNum(saidasRows[0] && saidasRows[0][6]);
-          if(semanasCobertas>0){
-            var coberturaRowsNew = Object.keys(stalenessAgg).map(function(k){
-              var sa = stalenessAgg[k];
-              var qtySaida = itemsAll[k] ? itemsAll[k].qty : 0;
-              if(qtySaida<=0 || sa.saldo<=0) return null;
-              var consumoDiario = (qtySaida / semanasCobertas) / 7;
-              if(consumoDiario<=0) return null;
-              return [k, sa.grupo, Math.round(sa.saldo*100)/100, Math.round(consumoDiario*1000)/1000, Math.round(sa.saldo/consumoDiario)];
-            }).filter(Boolean)
-              .sort(function(a,b){ return a[4]-b[4]; })
-              .slice(0,20);
-            baseData.coberturaRows = coberturaRowsNew;
-            baseData.semanasCobertas = Math.round(semanasCobertas*10)/10;
-          }
         }
       }
     } else { warnings.push('Não encontrei a aba "Historico_Saidas".'); }
@@ -2111,7 +2043,6 @@
     negativeItems = b.negativeItems;
     saldoDonutData = [comSaldoGlobal, zeradoGlobal, negativoGlobal];
     giroRows = b.giroRows || [];
-    if(b.coberturaRows){ coberturaRows = b.coberturaRows; semanasCobertasGlobal = b.semanasCobertas; }
 
     if(result.saidas){
       movData = result.saidas.movData;
@@ -2149,7 +2080,6 @@
     populateComprasSituacaoOptions();
     refreshComprasCount();
     buildGiroTable();
-    buildCoberturaTable();
     populateSetorSelect();
     if(grupoSorted.length) renderSetor(grupoSorted[0][0]);
     updateStaticTexts();
