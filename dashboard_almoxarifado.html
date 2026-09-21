@@ -542,10 +542,15 @@
       <div class="grid cols-2" style="margin-top:14px;">
         <div class="card">
           <h3>Entradas registradas por mês</h3>
-          <div class="card-sub" id="entradaHint">nº de lançamentos de entrada · aba Historico_Entradas</div>
+          <div class="card-sub" id="entradaHint">nº de lançamentos de entrada · aba Historico_Entradas · clique em até 2 barras para comparar</div>
           <div class="chart-wrap" style="height:260px;">
             <canvas id="chartEntrada"></canvas>
           </div>
+          <div class="compare-bar">
+            <span class="compare-hint" id="compareHintEntrada">Clique em uma barra do gráfico para ver o detalhe do mês.</span>
+            <button class="clear-btn" id="clearCompareEntrada" hidden type="button">Limpar seleção</button>
+          </div>
+          <div class="compare-panel" id="comparePanelEntrada"></div>
         </div>
         <div class="card">
           <h3>Itens mais recebidos</h3>
@@ -988,6 +993,18 @@
     ["jan/26", 5], ["fev/26", 17], ["mar/26", 49], ["abr/26", 18], ["mai/26", 17],
     ["jun/26", 5], ["jul/26", 27], ["ago/26", 25], ["set/26*", 8]
   ];
+  var selectedMonthsEntrada = [];
+  var monthDetailEntrada = {
+    "jan/26": { n:5, topItems:[["Sifão sanfonado duplo",1,6],["Parafuso francês 5/16 X1 3/4",1,28],["Parafuso francês 5/16X1 1/2",1,103]], topLocal:["Almoxarifado",5] },
+    "fev/26": { n:17, topItems:[["Porca auto travante MA 10",2,40],["Parafuso sext UNC 1/4X1 1/2 ZB",1,10],["Porca sextavada UNC 1/4 ZB",1,10]], topLocal:["Almoxarifado",17] },
+    "mar/26": { n:49, topItems:[["Broca para concreto 8x120mm",2,4],["Parafuso autobrocante sext 12X7/8",1,100],["Parafuso autobrocante sext 12X1 1/2",1,1]], topLocal:["Almoxarifado",49] },
+    "abr/26": { n:18, topItems:[["P.MDF 4,5X50",2,200],["P.MDF 4,0 X 35 100 pçs",2,200],["P.sext.MA 06X25 8.8",1,50]], topLocal:["Almoxarifado",18] },
+    "mai/26": { n:17, topItems:[["Desingripante spray 300ml",1,6],["Broca aço rápido 3/16",1,2],["Arrebite A-525/6100 100 pçs",1,10]], topLocal:["Almoxarifado",17] },
+    "jun/26": { n:5, topItems:[["Roda Colson pneumática 350-4 R.7",1,20],["P. flangeado p. broca 4,2 X 19 emb",1,1],["P. sext. UNC inox 1/4 X 3/4",1,10]], topLocal:["Almoxarifado",5] },
+    "jul/26": { n:27, topItems:[["Roda Colson pneumática 350-4 R.7",2,20],["Carregador Kress 28V 2.0 a 6.0 Ah",1,1],["Bateria Kress lítion 20V 6.0Am KA",1,1]], topLocal:["Almoxarifado",27] },
+    "ago/26": { n:25, topItems:[["Arrebite A-416/565 100 peças",2,20],["Mangueira alta pressão Uniforte",2,40],["Chave allen curta c/po",1,1]], topLocal:["Almoxarifado",25] },
+    "set/26*": { n:8, topItems:[["Tomada dupla 20A",1,1],["P.sext. R. sob. ZB 5/16 X100",1,15],["Botão francês P&J c/02 pçs ABS CR",1,2]], topLocal:["Almoxarifado",8] }
+  };
   var topEntradas = [
     ["P.MDF 4,0 X 35", 301, 4, 56.40],
     ["P.MDF 4,5X50", 230, 3, 57.50],
@@ -1405,14 +1422,21 @@
         labels: movDataEntrada.map(function(d){return d[0];}),
         datasets:[{
           data: movDataEntrada.map(function(d){return d[1];}),
-          backgroundColor: hexToRgba(good, isDark()?0.55:0.65),
+          backgroundColor: movDataEntrada.map(function(d){ return selectedMonthsEntrada.indexOf(d[0])>=0 ? good : hexToRgba(good, isDark()?0.28:0.35); }),
           borderRadius: 4, maxBarThickness: 28
         }]
       },
       options:{
         responsive:true, maintainAspectRatio:false,
+        onHover:function(evt,elements){ evt.native.target.style.cursor = elements.length ? 'pointer' : 'default'; },
+        onClick:function(evt,elements){
+          if(!elements.length) return;
+          var idxE = elements[0].index;
+          var monthE = movDataEntrada[idxE][0];
+          toggleMonthEntrada(monthE);
+        },
         plugins:{ legend:{display:false},
-          tooltip:{ callbacks:{ label:function(ctx){ return ctx.parsed.y+' entradas'; } } } },
+          tooltip:{ callbacks:{ label:function(ctx){ return ctx.parsed.y+' entradas · clique para comparar'; } } } },
         scales:{ x:{ grid:{display:false} }, y:{ grid:{color:grid}, beginAtZero:true } }
       }
     });
@@ -1706,6 +1730,64 @@
 
   clearCompareBtn.addEventListener('click', function(){ selectedMonths = []; renderMonthCompare(); setTimeout(renderCharts, 0); });
 
+  var compareHintEntrada = document.getElementById('compareHintEntrada');
+  var comparePanelEntrada = document.getElementById('comparePanelEntrada');
+  var clearCompareEntradaBtn = document.getElementById('clearCompareEntrada');
+
+  function toggleMonthEntrada(month){
+    var idx = selectedMonthsEntrada.indexOf(month);
+    if(idx>=0){ selectedMonthsEntrada.splice(idx,1); }
+    else{
+      selectedMonthsEntrada.push(month);
+      if(selectedMonthsEntrada.length>2) selectedMonthsEntrada.shift();
+    }
+    renderMonthCompareEntrada();
+    setTimeout(renderCharts, 0);
+  }
+
+  function monthCardEntrada(month){
+    var d = monthDetailEntrada[month];
+    var mov = movDataEntrada.filter(function(m){return m[0]===month;})[0];
+    var items = d.topItems.map(function(it){
+      return '<div class="compare-row"><span>'+it[0]+'</span><span class="v">'+it[1]+'x</span></div>';
+    }).join('');
+    return '<div class="compare-col">'+
+      '<h4>'+month+'</h4>'+
+      '<div class="compare-row"><span>Entradas registradas</span><span class="v">'+mov[1]+'</span></div>'+
+      '<div class="compare-row"><span>Local mais ativo</span><span class="v">'+d.topLocal[0]+' ('+d.topLocal[1]+')</span></div>'+
+      '<div class="compare-row" style="border-bottom:none; padding-bottom:0; margin-top:4px; color:var(--text-faint); font-size:11px; text-transform:uppercase; letter-spacing:.04em;"><span>Itens mais recebidos</span><span></span></div>'+
+      items+
+      '</div>';
+  }
+
+  function renderMonthCompareEntrada(){
+    if(selectedMonthsEntrada.length===0){
+      compareHintEntrada.textContent = 'Clique em uma barra do gráfico para ver o detalhe do mês.';
+      clearCompareEntradaBtn.hidden = true;
+      comparePanelEntrada.className = 'compare-panel';
+      comparePanelEntrada.innerHTML = '';
+      return;
+    }
+    clearCompareEntradaBtn.hidden = false;
+    if(selectedMonthsEntrada.length===1){
+      compareHintEntrada.innerHTML = '<span class="chip">'+selectedMonthsEntrada[0]+'</span> selecionado — clique em outro mês para comparar';
+      comparePanelEntrada.className = 'compare-panel show';
+      comparePanelEntrada.innerHTML = '<div class="compare-grid single">'+monthCardEntrada(selectedMonthsEntrada[0])+'</div>';
+    } else {
+      compareHintEntrada.innerHTML = selectedMonthsEntrada.map(function(m){return '<span class="chip">'+m+'</span>';}).join(' vs ');
+      var m1e = movDataEntrada.filter(function(m){return m[0]===selectedMonthsEntrada[0];})[0][1];
+      var m2e = movDataEntrada.filter(function(m){return m[0]===selectedMonthsEntrada[1];})[0][1];
+      var deltaE = m2e - m1e;
+      var pctE = m1e ? (deltaE/m1e*100) : 0;
+      var dirWordE = deltaE>=0 ? 'mais entradas' : 'menos entradas';
+      comparePanelEntrada.className = 'compare-panel show';
+      comparePanelEntrada.innerHTML = '<div class="compare-grid">'+monthCardEntrada(selectedMonthsEntrada[0])+monthCardEntrada(selectedMonthsEntrada[1])+'</div>'+
+        '<div class="compare-delta">'+selectedMonthsEntrada[1]+' teve <b>'+Math.abs(deltaE)+' '+dirWordE+'</b> que '+selectedMonthsEntrada[0]+' ('+(pctE>=0?'+':'')+pctE.toFixed(0)+'%)</div>';
+    }
+  }
+
+  clearCompareEntradaBtn.addEventListener('click', function(){ selectedMonthsEntrada = []; renderMonthCompareEntrada(); setTimeout(renderCharts, 0); });
+
   /* ---------- Textos dinâmicos (KPIs, hints, callouts) ---------- */
   function updateStaticTexts(){
     document.getElementById('kpiValorTotal').textContent = 'R$ '+(totalValorGeral/1e6).toLocaleString('pt-BR',{maximumFractionDigits:2})+'M';
@@ -1943,7 +2025,8 @@
       else {
         var eHeader = entradasRows[heIdx];
         var ceProd = findCol(eHeader,'produto')>=0 ? findCol(eHeader,'produto') : findCol(eHeader,'item');
-        var ceQtd = findCol(eHeader,'quantidade'), ceData = findCol(eHeader,'data'), ceValor = findCol(eHeader,'valor total');
+        var ceQtd = findCol(eHeader,'quantidade'), ceData = findCol(eHeader,'data'), ceValor = findCol(eHeader,'valor total'),
+            ceAlmox = findCol(eHeader,'almoxarifado');
         if(ceProd<0 || ceQtd<0 || ceData<0){ warnings.push('A aba "Historico_Entradas" não tem as colunas esperadas (Produto, Quantidade, Data).'); }
         else {
           var monthAggE = {}, itemsAllE = {}, totalEntradas = 0, valorTotalEntradas = 0;
@@ -1958,20 +2041,30 @@
             var valorE = ceValor>=0 ? parseNum(r5[ceValor]) : 0;
             var dE = excelSerialToDate(serialE);
             var monthKeyE = dE.getUTCFullYear()+'-'+('0'+(dE.getUTCMonth()+1)).slice(-2);
-            if(!monthAggE[monthKeyE]) monthAggE[monthKeyE] = {n:0, qty:0, valor:0, year:dE.getUTCFullYear(), month:dE.getUTCMonth()};
-            monthAggE[monthKeyE].n++; monthAggE[monthKeyE].qty += qtyE; monthAggE[monthKeyE].valor += valorE;
+            if(!monthAggE[monthKeyE]) monthAggE[monthKeyE] = {n:0, qty:0, valor:0, items:{}, almox:{}, year:dE.getUTCFullYear(), month:dE.getUTCMonth()};
+            var maE = monthAggE[monthKeyE];
+            maE.n++; maE.qty += qtyE; maE.valor += valorE;
             var itemNameE = String(itemValE).trim();
+            if(!maE.items[itemNameE]) maE.items[itemNameE] = {n:0, qty:0};
+            maE.items[itemNameE].n++; maE.items[itemNameE].qty += qtyE;
+            var almoxNameE = ceAlmox>=0 ? String(r5[ceAlmox]||'').trim() : '';
+            if(almoxNameE) maE.almox[almoxNameE] = (maE.almox[almoxNameE]||0) + 1;
             if(!itemsAllE[itemNameE]) itemsAllE[itemNameE] = {qty:0, n:0, valor:0};
             itemsAllE[itemNameE].qty += qtyE; itemsAllE[itemNameE].n++; itemsAllE[itemNameE].valor += valorE;
             totalEntradas++; valorTotalEntradas += valorE;
           }
           var monthKeysE = Object.keys(monthAggE).sort();
           if(monthKeysE.length){
-            var movDataEntradaNew = monthKeysE.map(function(mk, idx){
+            var movDataEntradaNew = [], monthDetailEntradaNew = {};
+            monthKeysE.forEach(function(mk, idx){
               var ma = monthAggE[mk];
               var label = monthAbbrev[ma.month] + '/' + String(ma.year).slice(2);
               if(idx===monthKeysE.length-1) label += '*';
-              return [label, ma.n];
+              movDataEntradaNew.push([label, ma.n]);
+              var topItemsArrE = Object.keys(ma.items).map(function(k){ return [k, ma.items[k].n, Math.round(ma.items[k].qty*100)/100]; })
+                .sort(function(a,b){return b[1]-a[1];}).slice(0,3);
+              var topAlmoxEntryE = Object.keys(ma.almox).map(function(k){return [k, ma.almox[k]];}).sort(function(a,b){return b[1]-a[1];})[0] || ['—',0];
+              monthDetailEntradaNew[label] = { n: ma.n, topItems: topItemsArrE, topLocal: topAlmoxEntryE };
             });
             var topEntradasNew = Object.keys(itemsAllE).map(function(k){
               return [k, Math.round(itemsAllE[k].qty*100)/100, itemsAllE[k].n, Math.round(itemsAllE[k].valor*100)/100];
@@ -1980,7 +2073,7 @@
             var lastLabelE = movDataEntradaNew[movDataEntradaNew.length-1][0].replace('*','');
             entradasResult = {
               total: totalEntradas, valorTotal: Math.round(valorTotalEntradas*100)/100,
-              movData: movDataEntradaNew, topEntradas: topEntradasNew,
+              movData: movDataEntradaNew, monthDetail: monthDetailEntradaNew, topEntradas: topEntradasNew,
               dateRange: firstLabelE + ' a ' + lastLabelE
             };
           }
@@ -2142,10 +2235,12 @@
 
     if(result.entradas){
       movDataEntrada = result.entradas.movData;
+      monthDetailEntrada = result.entradas.monthDetail;
       topEntradas = result.entradas.topEntradas;
       movTotalGlobalEntrada = result.entradas.total;
       movValorGlobalEntrada = result.entradas.valorTotal;
       movDateRangeGlobalEntrada = result.entradas.dateRange;
+      selectedMonthsEntrada = [];
     }
 
     if(result.pedidos){
@@ -2180,6 +2275,7 @@
     updateStaticTexts();
     updateMovResumo();
     renderMonthCompare();
+    renderMonthCompareEntrada();
     setTimeout(renderCharts, 0);
   }
 
