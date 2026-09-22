@@ -380,7 +380,7 @@
           <span id="themeIcon">☾</span><span id="themeLabel">Modo escuro</span>
         </button>
         <div class="bell"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 8a6 6 0 0112 0c0 4 1.5 5.5 2 6.5H4c.5-1 2-2.5 2-6.5z"/><path d="M10 19a2 2 0 004 0"/></svg><span class="ping"></span></div>
-        <div class="avatar" title="Karen Rodrigues">KR</div>
+        <div class="avatar" title="Almoxarifado Boibom">BB</div>
       </div>
     </div>
     <div class="upload-banner" id="uploadBanner" hidden></div>
@@ -604,6 +604,11 @@
         <div class="chart-wrap" style="height:220px;">
           <canvas id="chartCompras"></canvas>
         </div>
+        <div class="compare-bar">
+          <span class="compare-hint" id="compareHintCompras">Clique em uma barra do gráfico para ver o top 20 de itens comprados no mês.</span>
+          <button class="clear-btn" id="clearCompareCompras" hidden type="button">Limpar seleção</button>
+        </div>
+        <div class="compare-panel" id="comparePanelCompras"></div>
       </div>
     </section>
 
@@ -1120,6 +1125,8 @@
 
   // ---- Gasto em compras por mês (aba Historico_Entradas — valor do que realmente entrou no estoque) ----
   var movDataCompras = []; // [[label, valorGasto], ...]
+  var monthDetailCompras = {}; // label -> { total, topItems: [[produto, valor, nEntradas, ultimaData], ...] até 20 }
+  var selectedMonthsCompras = [];
 
   function fmtBRL(v){
     return v.toLocaleString('pt-BR', {style:'currency', currency:'BRL', maximumFractionDigits:0});
@@ -1440,14 +1447,20 @@
           labels: movDataCompras.map(function(d){return d[0];}),
           datasets:[{
             data: movDataCompras.map(function(d){return d[1];}),
-            backgroundColor: hexToRgba(good, isDark()?0.55:0.65),
+            backgroundColor: movDataCompras.map(function(d){ return selectedMonthsCompras.indexOf(d[0])>=0 ? good : hexToRgba(good, isDark()?0.28:0.35); }),
             borderRadius: 4, maxBarThickness: 36
           }]
         },
         options:{
           responsive:true, maintainAspectRatio:false,
+          onHover:function(evt,elements){ evt.native.target.style.cursor = elements.length ? 'pointer' : 'default'; },
+          onClick:function(evt,elements){
+            if(!elements.length) return;
+            var idxC = elements[0].index;
+            toggleMonthCompras(movDataCompras[idxC][0]);
+          },
           plugins:{ legend:{display:false},
-            tooltip:{ callbacks:{ label:function(ctx){ return fmtBRL(ctx.parsed.y); } } } },
+            tooltip:{ callbacks:{ label:function(ctx){ return fmtBRL(ctx.parsed.y)+' · clique para ver o top 20'; } } } },
           scales:{
             x:{ grid:{display:false} },
             y:{ grid:{color:grid}, beginAtZero:true, ticks:{ callback:function(v){ return 'R$ '+(v/1000).toFixed(0)+'k'; } } }
@@ -1953,6 +1966,65 @@
 
   clearCompareEstoqueBtn.addEventListener('click', function(){ selectedMonthsEstoque = []; renderMonthCompareEstoque(); setTimeout(renderCharts, 0); });
 
+  var compareHintCompras = document.getElementById('compareHintCompras');
+  var comparePanelCompras = document.getElementById('comparePanelCompras');
+  var clearCompareComprasBtn = document.getElementById('clearCompareCompras');
+
+  function toggleMonthCompras(month){
+    var idx = selectedMonthsCompras.indexOf(month);
+    if(idx>=0){ selectedMonthsCompras.splice(idx,1); }
+    else{
+      selectedMonthsCompras.push(month);
+      if(selectedMonthsCompras.length>2) selectedMonthsCompras.shift();
+    }
+    renderMonthCompareCompras();
+    setTimeout(renderCharts, 0);
+  }
+
+  function monthCardCompras(month){
+    var d = monthDetailCompras[month];
+    if(!d) return '<div class="compare-col"><h4>'+month+'</h4><div class="compare-row" style="border-bottom:none;">Sem dados.</div></div>';
+    var rows = d.topItems.map(function(it, i){
+      return '<tr><td class="rank num">'+(i+1)+'</td><td class="prod-name">'+it[0]+'</td>'+
+        '<td class="num">'+fmtBRL(it[1])+'</td><td class="num">'+it[2]+'</td><td class="prod-loc">'+it[3]+'</td></tr>';
+    }).join('');
+    return '<div class="compare-col">'+
+      '<h4>'+month+'</h4>'+
+      '<div class="compare-row" style="border-bottom:none; padding-top:0;"><span>Total gasto no mês</span><span class="v">'+fmtBRL(d.total)+'</span></div>'+
+      '<div class="table-scroll" style="max-height:340px; overflow-y:auto; margin-top:6px;">'+
+      '<table><thead><tr><th>#</th><th>Produto</th><th class="num">Valor</th><th class="num">Entradas</th><th>Últ. data</th></tr></thead>'+
+      '<tbody>'+rows+'</tbody></table></div>'+
+      '</div>';
+  }
+
+  function renderMonthCompareCompras(){
+    if(selectedMonthsCompras.length===0){
+      compareHintCompras.textContent = 'Clique em uma barra do gráfico para ver o top 20 de itens comprados no mês.';
+      clearCompareComprasBtn.hidden = true;
+      comparePanelCompras.className = 'compare-panel';
+      comparePanelCompras.innerHTML = '';
+      return;
+    }
+    clearCompareComprasBtn.hidden = false;
+    if(selectedMonthsCompras.length===1){
+      compareHintCompras.innerHTML = '<span class="chip">'+selectedMonthsCompras[0]+'</span> selecionado — clique em outro mês para comparar';
+      comparePanelCompras.className = 'compare-panel show';
+      comparePanelCompras.innerHTML = '<div class="compare-grid single">'+monthCardCompras(selectedMonthsCompras[0])+'</div>';
+    } else {
+      compareHintCompras.innerHTML = selectedMonthsCompras.map(function(m){return '<span class="chip">'+m+'</span>';}).join(' vs ');
+      var v1 = movDataCompras.filter(function(m){return m[0]===selectedMonthsCompras[0];})[0][1];
+      var v2 = movDataCompras.filter(function(m){return m[0]===selectedMonthsCompras[1];})[0][1];
+      var deltaC = v2 - v1;
+      var pctC = v1 ? (deltaC/v1*100) : 0;
+      var dirWordC = deltaC>=0 ? 'a mais em compras' : 'a menos em compras';
+      comparePanelCompras.className = 'compare-panel show';
+      comparePanelCompras.innerHTML = '<div class="compare-grid">'+monthCardCompras(selectedMonthsCompras[0])+monthCardCompras(selectedMonthsCompras[1])+'</div>'+
+        '<div class="compare-delta">'+selectedMonthsCompras[1]+' teve <b>'+fmtBRL(Math.abs(deltaC))+' '+dirWordC+'</b> que '+selectedMonthsCompras[0]+' (<b>'+(pctC>=0?'+':'')+pctC.toFixed(1)+'%</b>)</div>';
+    }
+  }
+
+  clearCompareComprasBtn.addEventListener('click', function(){ selectedMonthsCompras = []; renderMonthCompareCompras(); setTimeout(renderCharts, 0); });
+
   /* ---------- Textos dinâmicos (KPIs, hints, callouts) ---------- */
   function updateStaticTexts(){
     document.getElementById('kpiValorTotal').textContent = 'R$ '+(totalValorGeral/1e6).toLocaleString('pt-BR',{maximumFractionDigits:2})+'M';
@@ -2225,8 +2297,10 @@
             var maE = monthAggE[monthKeyE];
             maE.n++; maE.qty += qtyE; maE.valor += valorE;
             var itemNameE = String(itemValE).trim();
-            if(!maE.items[itemNameE]) maE.items[itemNameE] = {n:0, qty:0};
+            if(!maE.items[itemNameE]) maE.items[itemNameE] = {n:0, qty:0, valor:0, lastDate:0};
             maE.items[itemNameE].n++; maE.items[itemNameE].qty += qtyE;
+            maE.items[itemNameE].valor += valorE;
+            if(serialE > maE.items[itemNameE].lastDate) maE.items[itemNameE].lastDate = serialE;
             var almoxNameE = ceAlmox>=0 ? String(r5[ceAlmox]||'').trim() : '';
             if(almoxNameE) maE.almox[almoxNameE] = (maE.almox[almoxNameE]||0) + 1;
             if(!itemsAllE[itemNameE]) itemsAllE[itemNameE] = {qty:0, n:0, valor:0};
@@ -2235,7 +2309,7 @@
           }
           var monthKeysE = Object.keys(monthAggE).sort();
           if(monthKeysE.length){
-            var movDataEntradaNew = [], movDataEntradaValorNew = [], monthDetailEntradaNew = {};
+            var movDataEntradaNew = [], movDataEntradaValorNew = [], monthDetailEntradaNew = {}, monthDetailComprasNew = {};
             monthKeysE.forEach(function(mk, idx){
               var ma = monthAggE[mk];
               var label = monthAbbrev[ma.month] + '/' + String(ma.year).slice(2);
@@ -2246,6 +2320,13 @@
                 .sort(function(a,b){return b[1]-a[1];}).slice(0,3);
               var topAlmoxEntryE = Object.keys(ma.almox).map(function(k){return [k, ma.almox[k]];}).sort(function(a,b){return b[1]-a[1];})[0] || ['—',0];
               monthDetailEntradaNew[label] = { n: ma.n, topItems: topItemsArrE, topLocal: topAlmoxEntryE };
+
+              // Top 20 por valor gasto no mês (produto, valor, nº de entradas, data mais recente)
+              var topGastoArr = Object.keys(ma.items).map(function(k){
+                var it = ma.items[k];
+                return [k, Math.round(it.valor*100)/100, it.n, it.lastDate ? fmtDateBR(excelSerialToDate(it.lastDate)) : '—'];
+              }).sort(function(a,b){ return b[1]-a[1]; }).slice(0,20);
+              monthDetailComprasNew[label] = { total: Math.round(ma.valor*100)/100, topItems: topGastoArr };
             });
             var topEntradasNew = Object.keys(itemsAllE).map(function(k){
               return [k, Math.round(itemsAllE[k].qty*100)/100, itemsAllE[k].n, Math.round(itemsAllE[k].valor*100)/100];
@@ -2255,7 +2336,8 @@
             entradasResult = {
               total: totalEntradas, valorTotal: Math.round(valorTotalEntradas*100)/100,
               movData: movDataEntradaNew, movDataValor: movDataEntradaValorNew,
-              monthDetail: monthDetailEntradaNew, topEntradas: topEntradasNew,
+              monthDetail: monthDetailEntradaNew, monthDetailCompras: monthDetailComprasNew,
+              topEntradas: topEntradasNew,
               dateRange: firstLabelE + ' a ' + lastLabelE
             };
           }
@@ -2459,6 +2541,8 @@
       movDateRangeGlobalEntrada = result.entradas.dateRange;
       selectedMonthsEntrada = [];
       movDataCompras = result.entradas.movDataValor || [];
+      monthDetailCompras = result.entradas.monthDetailCompras || {};
+      selectedMonthsCompras = [];
       document.getElementById('comprasValorHint').textContent =
         'soma do "Valor Total" da aba Historico_Entradas, por mês em que o material entrou no estoque';
     }
@@ -2509,6 +2593,7 @@
     renderMonthCompare();
     renderMonthCompareEntrada();
     renderMonthCompareEstoque();
+    renderMonthCompareCompras();
     setTimeout(renderCharts, 0);
   }
 
