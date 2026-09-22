@@ -1106,6 +1106,7 @@
     ["Mancal embreagem — Accelo /Atego /5909","Manut. transporte","Almox. 1 — Manut. transporte",1,655.00,1012],
     ["Emblema grade 313 CDI (Sprinter) marca Mercedes Benz","Manut. transporte","Almox. 1 — Manut. transporte",1,111.69,1013]
   ];
+  var giroAllParados = giroRows; // lista completa (todos os grupos) de itens parados, usada no painel por grupo
 
   // ---- Próximos candidatos à curadoria: giro ativo (saída recente) sem mínimo/máximo definido ----
   var giroAtivoDias = 180;
@@ -2051,7 +2052,7 @@
     clearGrupoParadoBtn.hidden = false;
     grupoParadoHint.innerHTML = '<span class="chip">'+selectedGrupoParado+'</span> — top 10 itens parados por valor';
     grupoParadoPanel.className = 'compare-panel show';
-    var itemsG = giroRows.filter(function(r){ return r[1]===selectedGrupoParado; })
+    var itemsG = giroAllParados.filter(function(r){ return r[1]===selectedGrupoParado; })
       .slice().sort(function(a,b){ return b[4]-a[4]; }).slice(0,10);
     if(!itemsG.length){
       grupoParadoPanel.innerHTML = '<div class="compare-row" style="border-bottom:none;">Nenhum item parado (sem entrada/saída recente) neste grupo no momento.</div>';
@@ -2244,7 +2245,7 @@
 
     // Giro: itens com saldo e valor parados há mais tempo, sem nenhuma entrada/saída recente.
     var todaySerial = (Date.now() - Date.UTC(1899,11,30)) / 86400000;
-    var giroRowsNew = Object.keys(stalenessAgg)
+    var giroAllParadosNew = Object.keys(stalenessAgg)
       .map(function(k){
         var sa = stalenessAgg[k];
         var ref = Math.max(sa.dataSaida, sa.dataEntrada);
@@ -2254,9 +2255,9 @@
           saldo:sa.saldo, valor:Math.round(sa.valor*100)/100, dias:dias };
       })
       .filter(function(r){ return r.saldo>0 && r.valor>0 && r.dias!==null; })
-      .sort(function(a,b){ return b.dias - a.dias; })
-      .slice(0,20)
       .map(function(r){ return [r.produto, r.grupo, r.almox, r.saldo, r.valor, r.dias]; });
+    // Tabela "Itens parados há mais tempo": só o top 20 global por dias parado.
+    var giroRowsNew = giroAllParadosNew.slice().sort(function(a,b){ return b[5]-a[5]; }).slice(0,20);
 
     var saidasResult = null;
     var saidasRows = getSheetRows('Historico_Saidas');
@@ -2311,6 +2312,7 @@
       }
     } else { warnings.push('Não encontrei a aba "Historico_Saidas".'); }
     baseData.giroRows = giroRowsNew;
+    baseData.giroAllParados = giroAllParadosNew;
 
     var entradasResult = null;
     var entradasRows = getSheetRows('Historico_Entradas');
@@ -2561,6 +2563,7 @@
     negativeItems = b.negativeItems;
     saldoDonutData = [comSaldoGlobal, zeradoGlobal, negativoGlobal];
     giroRows = b.giroRows || [];
+    giroAllParados = b.giroAllParados || [];
     candidatosGiro = b.candidatosGiro || [];
     giroAtivoDias = b.giroAtivoDias || giroAtivoDias;
     giroAtivoTotal = b.giroAtivoTotal || 0;
