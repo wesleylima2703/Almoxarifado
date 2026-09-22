@@ -496,6 +496,11 @@
           <div class="chart-wrap" style="height:300px;">
             <canvas id="chartGrupo"></canvas>
           </div>
+          <div class="compare-bar">
+            <span class="compare-hint" id="grupoParadoHint">Clique numa barra do gráfico para ver os 10 itens parados com mais valor daquele grupo.</span>
+            <button class="clear-btn" id="clearGrupoParado" hidden type="button">Limpar seleção</button>
+          </div>
+          <div class="compare-panel" id="grupoParadoPanel"></div>
         </div>
         <div class="card">
           <h3>Situação do saldo</h3>
@@ -582,7 +587,7 @@
         </div>
         <div class="card">
           <h3>Itens mais recebidos</h3>
-          <div class="card-sub">soma da quantidade recebida no período, top 8</div>
+          <div class="card-sub">top 8 itens com mais lançamentos de entrada no período (não é o maior volume)</div>
           <div class="toolbar">
             <div class="search-box">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
@@ -1128,6 +1133,9 @@
   var monthDetailCompras = {}; // label -> { total, topItems: [[produto, valor, nEntradas, ultimaData], ...] até 20 }
   var selectedMonthsCompras = [];
 
+  // ---- Itens parados por grupo (clique numa barra de "Valor em estoque por grupo") ----
+  var selectedGrupoParado = null;
+
   function fmtBRL(v){
     return v.toLocaleString('pt-BR', {style:'currency', currency:'BRL', maximumFractionDigits:0});
   }
@@ -1491,10 +1499,13 @@
         onHover:function(evt,elements){ evt.native.target.style.cursor = elements.length ? 'pointer' : 'default'; },
         onClick:function(evt,elements){
           if(!elements.length) return;
-          openKpiModal('valor');
+          var idxG = elements[0].index;
+          var grupoNameClick = grupoData[idxG][0];
+          selectedGrupoParado = (selectedGrupoParado===grupoNameClick) ? null : grupoNameClick;
+          renderGrupoParadoPanel();
         },
         plugins:{ legend:{display:false},
-          tooltip:{ callbacks:{ label:function(ctx){ return fmtBRL(ctx.parsed.x)+' · clique para ver todos os grupos'; } } } },
+          tooltip:{ callbacks:{ label:function(ctx){ return fmtBRL(ctx.parsed.x)+' · clique para ver os itens parados'; } } } },
         scales:{
           x:{ grid:{color:grid}, ticks:{ callback:function(v){ return 'R$ '+(v/1000).toFixed(0)+'k'; } } },
           y:{ grid:{display:false} }
@@ -2025,6 +2036,38 @@
 
   clearCompareComprasBtn.addEventListener('click', function(){ selectedMonthsCompras = []; renderMonthCompareCompras(); setTimeout(renderCharts, 0); });
 
+  var grupoParadoHint = document.getElementById('grupoParadoHint');
+  var grupoParadoPanel = document.getElementById('grupoParadoPanel');
+  var clearGrupoParadoBtn = document.getElementById('clearGrupoParado');
+
+  function renderGrupoParadoPanel(){
+    if(!selectedGrupoParado){
+      grupoParadoHint.textContent = 'Clique numa barra do gráfico para ver os 10 itens parados com mais valor daquele grupo.';
+      clearGrupoParadoBtn.hidden = true;
+      grupoParadoPanel.className = 'compare-panel';
+      grupoParadoPanel.innerHTML = '';
+      return;
+    }
+    clearGrupoParadoBtn.hidden = false;
+    grupoParadoHint.innerHTML = '<span class="chip">'+selectedGrupoParado+'</span> — top 10 itens parados por valor';
+    grupoParadoPanel.className = 'compare-panel show';
+    var itemsG = giroRows.filter(function(r){ return r[1]===selectedGrupoParado; })
+      .slice().sort(function(a,b){ return b[4]-a[4]; }).slice(0,10);
+    if(!itemsG.length){
+      grupoParadoPanel.innerHTML = '<div class="compare-row" style="border-bottom:none;">Nenhum item parado (sem entrada/saída recente) neste grupo no momento.</div>';
+      return;
+    }
+    var rowsG = itemsG.map(function(r,i){
+      var anosG = (r[5]/365).toFixed(1);
+      return '<tr><td class="rank num">'+(i+1)+'</td><td class="prod-name">'+r[0]+'</td><td class="prod-loc">'+r[2]+'</td>'+
+        '<td class="num">'+fmtNum(r[3])+'</td><td class="num">'+fmtBRL(r[4])+'</td>'+
+        '<td class="num">'+r[5].toLocaleString('pt-BR')+' <span class="prod-loc">('+anosG+' anos)</span></td></tr>';
+    }).join('');
+    grupoParadoPanel.innerHTML = '<div class="table-scroll"><table><thead><tr><th>#</th><th>Produto</th><th>Local</th><th class="num">Saldo</th><th class="num">Valor parado</th><th class="num">Dias parado</th></tr></thead><tbody>'+rowsG+'</tbody></table></div>';
+  }
+
+  clearGrupoParadoBtn.addEventListener('click', function(){ selectedGrupoParado = null; renderGrupoParadoPanel(); });
+
   /* ---------- Textos dinâmicos (KPIs, hints, callouts) ---------- */
   function updateStaticTexts(){
     document.getElementById('kpiValorTotal').textContent = 'R$ '+(totalValorGeral/1e6).toLocaleString('pt-BR',{maximumFractionDigits:2})+'M';
@@ -2256,7 +2299,7 @@
             if(idx===monthKeys.length-1) label += '*';
             movDataNew.push([label, ma.n]);
             var topItemsArr = Object.keys(ma.items).map(function(k){ return [k, ma.items[k].n, Math.round(ma.items[k].qty*100)/100]; })
-              .sort(function(a,b){return b[1]-a[1];}).slice(0,3);
+              .sort(function(a,b){return b[1]-a[1];}).slice(0,10);
             var topAlmoxEntry = Object.keys(ma.almox).map(function(k){return [k, ma.almox[k]];}).sort(function(a,b){return b[1]-a[1];})[0] || ['—',0];
             monthDetailNew[label] = { n: ma.n, topItems: topItemsArr, topLocal: topAlmoxEntry };
           });
@@ -2317,7 +2360,7 @@
               movDataEntradaNew.push([label, ma.n]);
               movDataEntradaValorNew.push([label, Math.round(ma.valor*100)/100]);
               var topItemsArrE = Object.keys(ma.items).map(function(k){ return [k, ma.items[k].n, Math.round(ma.items[k].qty*100)/100]; })
-                .sort(function(a,b){return b[1]-a[1];}).slice(0,3);
+                .sort(function(a,b){return b[1]-a[1];}).slice(0,10);
               var topAlmoxEntryE = Object.keys(ma.almox).map(function(k){return [k, ma.almox[k]];}).sort(function(a,b){return b[1]-a[1];})[0] || ['—',0];
               monthDetailEntradaNew[label] = { n: ma.n, topItems: topItemsArrE, topLocal: topAlmoxEntryE };
 
@@ -2330,7 +2373,7 @@
             });
             var topEntradasNew = Object.keys(itemsAllE).map(function(k){
               return [k, Math.round(itemsAllE[k].qty*100)/100, itemsAllE[k].n, Math.round(itemsAllE[k].valor*100)/100];
-            }).sort(function(a,b){return b[1]-a[1];}).slice(0,8);
+            }).sort(function(a,b){return b[2]-a[2];}).slice(0,8);
             var firstLabelE = movDataEntradaNew[0][0].replace('*','');
             var lastLabelE = movDataEntradaNew[movDataEntradaNew.length-1][0].replace('*','');
             entradasResult = {
@@ -2521,6 +2564,7 @@
     candidatosGiro = b.candidatosGiro || [];
     giroAtivoDias = b.giroAtivoDias || giroAtivoDias;
     giroAtivoTotal = b.giroAtivoTotal || 0;
+    selectedGrupoParado = null;
 
     if(result.saidas){
       movData = result.saidas.movData;
@@ -2576,6 +2620,7 @@
     }
 
     buildTopSaidasTable();
+    buildTopEntradasTable();
     buildFornecedorTable();
     buildTop20Table();
     populateTop20AlmoxOptions();
@@ -2594,6 +2639,7 @@
     renderMonthCompareEntrada();
     renderMonthCompareEstoque();
     renderMonthCompareCompras();
+    renderGrupoParadoPanel();
     setTimeout(renderCharts, 0);
   }
 
