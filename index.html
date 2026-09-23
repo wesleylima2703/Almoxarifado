@@ -2423,7 +2423,11 @@
           var dataLabel = dataSerial && !isNaN(dataSerial) ? fmtDateBR(excelSerialToDate(dataSerial)) : (String(dataVal||'').trim());
           var qtdVal = cQtdP>=0 ? r3[cQtdP] : null;
           var qtdNum = (qtdVal===null || qtdVal===undefined || String(qtdVal).trim()==='') ? null : parseNum(qtdVal);
-          var previsaoVal = cPrevisao>=0 ? String(r3[cPrevisao]||'').trim() : '';
+          var previsaoRaw = cPrevisao>=0 ? r3[cPrevisao] : '';
+          var previsaoSerial = typeof previsaoRaw==='number' ? previsaoRaw : parseFloat(previsaoRaw);
+          var previsaoVal = previsaoSerial && !isNaN(previsaoSerial) && String(previsaoRaw).trim()===String(previsaoSerial)
+            ? fmtDateBR(excelSerialToDate(previsaoSerial))
+            : (String(previsaoRaw||'').trim());
           var obsVal = cObsP>=0 ? String(r3[cObsP]||'').trim() : '';
 
           // Último fornecedor conhecido: usa o próprio, ou o último registrado antes (mesmo produto, ordem cronológica das linhas).
